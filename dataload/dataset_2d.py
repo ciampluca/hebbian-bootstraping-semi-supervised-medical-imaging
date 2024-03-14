@@ -64,6 +64,9 @@ class dataset_itn(Dataset):
             mask_path = self.mask_paths[index]
             mask = Image.open(mask_path)
             mask = np.array(mask)
+            mask[mask > 0] = 1
+            #if mask.ndim == 2:
+            #    mask = mask[..., np.newaxis]
 
             augment_1 = self.augmentation_1(image=img_1, mask=mask)
             img_1 = augment_1['image']

@@ -8,8 +8,8 @@ import SimpleITK as sitk
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', default='E:/Biomedical datasets/2018 Atrial Segmentation Challenge/Training Set')
-    parser.add_argument('--save_path', default='E:/Biomedical datasets/2018 Atrial Segmentation Challenge/dataset')
+    parser.add_argument('--data_path', default='/mnt/Workspace/hebbian-bootstraping-semi-supervised-medical-imaging/data/LA/training_set')
+    parser.add_argument('--save_path', default='/mnt/Workspace/hebbian-bootstraping-semi-supervised-medical-imaging/data/LA/dataset')
     args = parser.parse_args()
 
     if not os.path.exists(args.save_path):

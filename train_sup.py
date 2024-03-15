@@ -28,7 +28,7 @@ simplefilter(action='ignore', category=FutureWarning)
 
 # TODO aggiungere supporto tensorboard
 # TODO aggiungere suppporto salvataggio risultati
-# TODO aggiungere supporto per fare esperimenti su una frazione di dati, cosi come è ora è fatto a merda
+# TODO aggiungere supporto per fare esperimenti su una frazione di dati, cosi come è ora è fatto a merda; in realtà guardare meglio c'è la possibilità di passare num images nel dataset
 
 
 def init_seeds(seed):

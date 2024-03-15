@@ -24,6 +24,7 @@ class dataset_it(Dataset):
             if sup:
                 mask_path = os.path.join(mask_dir, i)
                 subject_1 = tio.Subject(image=tio.ScalarImage(image_path_1), mask=tio.LabelMap(mask_path), ID=i)
+                subject_1['mask'][tio.DATA][subject_1['mask'][tio.DATA]==255] = 1
             else:
                 subject_1 = tio.Subject(image=tio.ScalarImage(image_path_1), ID=i)
 

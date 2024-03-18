@@ -80,6 +80,9 @@ if __name__ == '__main__':
     print_num = 42 + (cfg['NUM_CLASSES'] - 3) * 7
     print_num_minus = print_num - 2
 
+    if isinstance(args.patch_size, str):
+        args.patch_size = eval(args.patch_size)
+
     path_trained_models = args.path_trained_models+'/'+str(os.path.split(args.path_dataset)[1])
     if not os.path.exists(path_trained_models):
         os.mkdir(path_trained_models)
@@ -135,6 +138,7 @@ if __name__ == '__main__':
         num_images=None
     )
 
+    # TODO controllare meglio i sampler
     #train_sampler = torch.utils.data.distributed.DistributedSampler(dataset_train_sup.queue_train_set_1, shuffle=True)
     #val_sampler = torch.utils.data.distributed.DistributedSampler(dataset_val.queue_train_set_1, shuffle=False)
 

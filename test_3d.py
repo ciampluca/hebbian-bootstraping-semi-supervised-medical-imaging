@@ -38,7 +38,7 @@ if __name__ == '__main__':
     parser.add_argument('--path_seg_results', default='/mnt/data1/XNet/seg_pred/test')
     parser.add_argument('--dataset_name', default='LiTS', help='LiTS, Atrial')
     parser.add_argument('--input1', default='image')
-    parser.add_argument('--threshold', default=None)
+    parser.add_argument('--threshold', default=None, type=float)
     parser.add_argument('--patch_size', default=(112, 112, 32))
     parser.add_argument('--patch_overlap', default=(56, 56, 16))
     parser.add_argument('-b', '--batch_size', default=1, type=int)
@@ -48,12 +48,12 @@ if __name__ == '__main__':
     parser.add_argument('--rank_index', default=0, help='0, 1, 2, 3')
     args = parser.parse_args()
 
-    torch.cuda.set_device(args.local_rank)
-    dist.init_process_group(backend='nccl', init_method='env://')
+    torch.cuda.set_device(0)
+    #dist.init_process_group(backend='nccl', init_method='env://')
 
-    rank = torch.distributed.get_rank()
-    ngpus_per_node = torch.cuda.device_count()
-    init_seeds(rank + 1)
+    #rank = torch.distributed.get_rank()
+    #ngpus_per_node = torch.cuda.device_count()
+    init_seeds(1)
 
     # Config
     dataset_name = args.dataset_name
@@ -62,14 +62,19 @@ if __name__ == '__main__':
     print_num = 42 + (cfg['NUM_CLASSES'] - 3) * 7
     print_num_minus = print_num - 2
 
+    if isinstance(args.patch_size, str):
+        args.patch_size = eval(args.patch_size)
+    if isinstance(args.patch_overlap, str):
+        args.patch_overlap = eval(args.patch_overlap)
+
     # Results Save
-    if not os.path.exists(args.path_seg_results) and rank == args.rank_index:
+    if not os.path.exists(args.path_seg_results):
         os.mkdir(args.path_seg_results)
     path_seg_results = args.path_seg_results + '/' + str(dataset_name)
-    if not os.path.exists(path_seg_results) and rank == args.rank_index:
+    if not os.path.exists(path_seg_results):
         os.mkdir(path_seg_results)
     path_seg_results = path_seg_results + '/' + str(os.path.splitext(os.path.split(args.path_model)[1])[0])
-    if not os.path.exists(path_seg_results) and rank == args.rank_index:
+    if not os.path.exists(path_seg_results):
         os.mkdir(path_seg_results)
 
     data_transform = data_transform_3d(cfg['NORMALIZE'])
@@ -88,10 +93,10 @@ if __name__ == '__main__':
     #     model.load_state_dict(state_dict=state_dict)
     # model = DistributedDataParallel(model, device_ids=[args.local_rank])
 
-    model = DistributedDataParallel(model, device_ids=[args.local_rank])
+    #model = DistributedDataParallel(model, device_ids=[args.local_rank])
     state_dict = torch.load(args.path_model)
     model.load_state_dict(state_dict=state_dict)
-    dist.barrier()
+    #dist.barrier()
 
     # Test
     since = time.time()
@@ -129,10 +134,10 @@ if __name__ == '__main__':
         save_test_3d(cfg['NUM_CLASSES'], outputs_tensor, subject['ID'], args.threshold, path_seg_results, subject['image']['affine'])
 
 
-    if rank == args.rank_index:
-        time_elapsed = time.time() - since
-        m, s = divmod(time_elapsed, 60)
-        h, m = divmod(m, 60)
-        print('-' * print_num)
-        print('| Testing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
-        print('=' * print_num)
+    #if rank == args.rank_index:
+    time_elapsed = time.time() - since
+    m, s = divmod(time_elapsed, 60)
+    h, m = divmod(m, 60)
+    print('-' * print_num)
+    print('| Testing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
+    print('=' * print_num)

@@ -66,16 +66,16 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--network', default='unet', type=str)
     parser.add_argument('--local_rank', default=-1, type=int)
     parser.add_argument('--rank_index', default=0, help='0, 1, 2, 3')
-    parser.add_argument('-v', '--vis', default=True, help='need visualization or not')
+    parser.add_argument('-v', '--vis', default=False, help='need visualization or not')
     parser.add_argument('--visdom_port', default=16672)
     args = parser.parse_args()
 
-    torch.cuda.set_device(args.local_rank)
-    dist.init_process_group(backend='nccl', init_method='env://')
+    torch.cuda.set_device(0)
+    #dist.init_process_group(backend='nccl', init_method='env://')
 
-    rank = torch.distributed.get_rank()
-    ngpus_per_node = torch.cuda.device_count()
-    init_seeds(rank + 1)
+    #rank = torch.distributed.get_rank()
+    #ngpus_per_node = torch.cuda.device_count()
+    init_seeds(1)
 
     dataset_name = args.dataset_name
     cfg = dataset_cfg(dataset_name)
@@ -86,22 +86,22 @@ if __name__ == '__main__':
 
     # trained model save
     path_trained_models = args.path_trained_models + '/' + str(os.path.split(args.path_dataset)[1])
-    if not os.path.exists(path_trained_models) and rank == args.rank_index:
+    if not os.path.exists(path_trained_models):
         os.mkdir(path_trained_models)
     path_trained_models = path_trained_models + '/' + 'EM' + '-l=' + str(args.lr) + '-e=' + str(args.num_epochs) + '-s=' + str(args.step_size) + '-g=' + str(args.gamma) + '-b=' + str(args.batch_size) + '-cw' + str(args.unsup_weight) + '-w=' + str(args.warm_up_duration) + '-' + str(args.sup_mark) + '-' + str(args.unsup_mark) + '-' + str(args.input1)
-    if not os.path.exists(path_trained_models) and rank == args.rank_index:
+    if not os.path.exists(path_trained_models):
         os.mkdir(path_trained_models)
 
     # seg results save
     path_seg_results = args.path_seg_results + '/' + str(os.path.split(args.path_dataset)[1])
-    if not os.path.exists(path_seg_results) and rank == args.rank_index:
+    if not os.path.exists(path_seg_results):
         os.mkdir(path_seg_results)
     path_seg_results = path_seg_results + '/' + 'EM' + '-l=' + str(args.lr) + '-e=' + str(args.num_epochs) + '-s=' + str(args.step_size) + '-g=' + str(args.gamma) + '-b=' + str(args.batch_size) + '-cw=' + str(args.unsup_weight) + '-w=' + str(args.warm_up_duration) + '-' + str(args.sup_mark) + '-' + str(args.unsup_mark) + '-' + str(args.input1)
-    if not os.path.exists(path_seg_results) and rank == args.rank_index:
+    if not os.path.exists(path_seg_results):
         os.mkdir(path_seg_results)
 
     # vis
-    if args.vis and rank == args.rank_index:
+    if args.vis:
         visdom_env = str('Semi-EM-' + str(os.path.split(args.path_dataset)[1]) + '-' + args.network + '-l=' + str(args.lr) + '-e=' + str(args.num_epochs) + '-s=' + str(args.step_size) + '-g=' + str(args.gamma) + '-b=' + str(args.batch_size) + '-cw=' + str(args.unsup_weight) + '-w=' + str(args.warm_up_duration) + '-' + str(args.sup_mark) + '-' + str(args.unsup_mark) + '-' + str(args.input1))
         visdom = visdom_initialization_EM(env=visdom_env, port=args.visdom_port)
 
@@ -142,22 +142,22 @@ if __name__ == '__main__':
         num_images=None,
     )
 
-    train_sampler_sup = torch.utils.data.distributed.DistributedSampler(dataset_train_sup, shuffle=True)
-    train_sampler_unsup = torch.utils.data.distributed.DistributedSampler(dataset_train_unsup, shuffle=True)
-    val_sampler = torch.utils.data.distributed.DistributedSampler(dataset_val, shuffle=False)
+    #train_sampler_sup = torch.utils.data.distributed.DistributedSampler(dataset_train_sup, shuffle=True)
+    #train_sampler_unsup = torch.utils.data.distributed.DistributedSampler(dataset_train_unsup, shuffle=True)
+    #val_sampler = torch.utils.data.distributed.DistributedSampler(dataset_val, shuffle=False)
 
     dataloaders = dict()
-    dataloaders['train_sup'] = DataLoader(dataset_train_sup, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=8, sampler=train_sampler_sup)
-    dataloaders['train_unsup'] = DataLoader(dataset_train_unsup, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=8, sampler=train_sampler_unsup)
-    dataloaders['val'] = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=8, sampler=val_sampler)
+    dataloaders['train_sup'] = DataLoader(dataset_train_sup, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=8)
+    dataloaders['train_unsup'] = DataLoader(dataset_train_unsup, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=8)
+    dataloaders['val'] = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=8)
 
     num_batches = {'train_sup': len(dataloaders['train_sup']), 'train_unsup': len(dataloaders['train_unsup']), 'val': len(dataloaders['val'])}
 
     model1 = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
 
     model1 = model1.cuda()
-    model1 = DistributedDataParallel(model1, device_ids=[args.local_rank])
-    dist.barrier()
+    #model1 = DistributedDataParallel(model1, device_ids=[args.local_rank])
+    #dist.barrier()
 
     criterion = segmentation_loss(args.loss, False).cuda()
 
@@ -176,8 +176,8 @@ if __name__ == '__main__':
         if (count_iter - 1) % args.display_iter == 0:
             begin_time = time.time()
 
-        dataloaders['train_sup'].sampler.set_epoch(epoch)
-        dataloaders['train_unsup'].sampler.set_epoch(epoch)
+        #dataloaders['train_sup'].sampler.set_epoch(epoch)
+        #dataloaders['train_unsup'].sampler.set_epoch(epoch)
         model1.train()
 
         train_loss_sup_1 = 0.0
@@ -188,7 +188,7 @@ if __name__ == '__main__':
 
         unsup_weight = args.unsup_weight * (epoch + 1) / args.num_epochs
 
-        dist.barrier()
+        #dist.barrier()
 
         dataset_train_sup = iter(dataloaders['train_sup'])
         dataset_train_unsup = iter(dataloaders['train_unsup'])
@@ -245,21 +245,21 @@ if __name__ == '__main__':
 
         if count_iter % args.display_iter == 0:
 
-            score_gather_list_train1 = [torch.zeros_like(score_list_train1) for _ in range(ngpus_per_node)]
-            torch.distributed.all_gather(score_gather_list_train1, score_list_train1)
-            score_list_train1 = torch.cat(score_gather_list_train1, dim=0)
+            #score_gather_list_train1 = [torch.zeros_like(score_list_train1) for _ in range(ngpus_per_node)]
+            #torch.distributed.all_gather(score_gather_list_train1, score_list_train1)
+            #score_list_train1 = torch.cat(score_gather_list_train1, dim=0)
 
-            mask_gather_list_train = [torch.zeros_like(mask_list_train) for _ in range(ngpus_per_node)]
-            torch.distributed.all_gather(mask_gather_list_train, mask_list_train)
-            mask_list_train = torch.cat(mask_gather_list_train, dim=0)
+            #mask_gather_list_train = [torch.zeros_like(mask_list_train) for _ in range(ngpus_per_node)]
+            #torch.distributed.all_gather(mask_gather_list_train, mask_list_train)
+            #mask_list_train = torch.cat(mask_gather_list_train, dim=0)
 
-            if rank == args.rank_index:
-                torch.cuda.empty_cache()
-                print('=' * print_num)
-                print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
-                train_epoch_loss_sup1, train_epoch_loss_cps, train_epoch_loss = print_train_loss_EM(train_loss_sup_1, train_loss_unsup, train_loss, num_batches, print_num, print_num_minus)
-                train_eval_list1, train_m_jc1 = print_train_eval_sup(cfg['NUM_CLASSES'], score_list_train1, mask_list_train, print_num_minus)
-                torch.cuda.empty_cache()
+            #if rank == args.rank_index:
+            torch.cuda.empty_cache()
+            print('=' * print_num)
+            print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
+            train_epoch_loss_sup1, train_epoch_loss_cps, train_epoch_loss = print_train_loss_EM(train_loss_sup_1, train_loss_unsup, train_loss, num_batches, print_num, print_num_minus)
+            train_eval_list1, train_m_jc1 = print_train_eval_sup(cfg['NUM_CLASSES'], score_list_train1, mask_list_train, print_num_minus)
+            torch.cuda.empty_cache()
 
             with torch.no_grad():
                 model1.eval()
@@ -289,41 +289,41 @@ if __name__ == '__main__':
                     val_loss_sup_1 += loss_val_sup1.item()
 
                 torch.cuda.empty_cache()
-                score_gather_list_val1 = [torch.zeros_like(score_list_val1) for _ in range(ngpus_per_node)]
-                torch.distributed.all_gather(score_gather_list_val1, score_list_val1)
-                score_list_val1 = torch.cat(score_gather_list_val1, dim=0)
+                #score_gather_list_val1 = [torch.zeros_like(score_list_val1) for _ in range(ngpus_per_node)]
+                #torch.distributed.all_gather(score_gather_list_val1, score_list_val1)
+                #score_list_val1 = torch.cat(score_gather_list_val1, dim=0)
 
-                mask_gather_list_val = [torch.zeros_like(mask_list_val) for _ in range(ngpus_per_node)]
-                torch.distributed.all_gather(mask_gather_list_val, mask_list_val)
-                mask_list_val = torch.cat(mask_gather_list_val, dim=0)
+                #mask_gather_list_val = [torch.zeros_like(mask_list_val) for _ in range(ngpus_per_node)]
+                #torch.distributed.all_gather(mask_gather_list_val, mask_list_val)
+                #mask_list_val = torch.cat(mask_gather_list_val, dim=0)
 
-                name_gather_list_val = [None for _ in range(ngpus_per_node)]
-                torch.distributed.all_gather_object(name_gather_list_val, name_list_val)
-                name_list_val = np.concatenate(name_gather_list_val, axis=0)
+                #name_gather_list_val = [None for _ in range(ngpus_per_node)]
+                #torch.distributed.all_gather_object(name_gather_list_val, name_list_val)
+                #name_list_val = np.concatenate(name_gather_list_val, axis=0)
 
-                if rank == args.rank_index:
-                    val_epoch_loss_sup1 = print_val_loss_sup(val_loss_sup_1, num_batches, print_num, print_num_minus)
-                    val_eval_list1, val_m_jc1 = print_val_eval_sup(cfg['NUM_CLASSES'], score_list_val1, mask_list_val, print_num_minus)
-                    best_val_eval_list = save_val_best_sup_2d(cfg['NUM_CLASSES'], best_val_eval_list, model1, score_list_val1, name_list_val, val_eval_list1, path_trained_models, path_seg_results, cfg['PALETTE'], 'EM')
-                    torch.cuda.empty_cache()
+                #if rank == args.rank_index:
+                val_epoch_loss_sup1 = print_val_loss_sup(val_loss_sup_1, num_batches, print_num, print_num_minus)
+                val_eval_list1, val_m_jc1 = print_val_eval_sup(cfg['NUM_CLASSES'], score_list_val1, mask_list_val, print_num_minus)
+                best_val_eval_list = save_val_best_sup_2d(cfg['NUM_CLASSES'], best_val_eval_list, model1, score_list_val1, name_list_val, val_eval_list1, path_trained_models, path_seg_results, cfg['PALETTE'], 'EM')
+                torch.cuda.empty_cache()
 
-                    if args.vis:
-                        draw_img = draw_pred_sup(cfg['NUM_CLASSES'], mask_train_sup, mask_val, pred_train_sup1, outputs_val1, train_eval_list1, val_eval_list1)
-                        visualization_EM(visdom, epoch + 1, train_epoch_loss, train_epoch_loss_sup1, train_epoch_loss_cps, train_m_jc1, val_epoch_loss_sup1, val_m_jc1)
-                        visual_image_sup(visdom, draw_img[0], draw_img[1], draw_img[2], draw_img[3])
+                if args.vis:
+                    draw_img = draw_pred_sup(cfg['NUM_CLASSES'], mask_train_sup, mask_val, pred_train_sup1, outputs_val1, train_eval_list1, val_eval_list1)
+                    visualization_EM(visdom, epoch + 1, train_epoch_loss, train_epoch_loss_sup1, train_epoch_loss_cps, train_m_jc1, val_epoch_loss_sup1, val_m_jc1)
+                    visual_image_sup(visdom, draw_img[0], draw_img[1], draw_img[2], draw_img[3])
 
-                    print('-' * print_num)
-                    print('| Epoch Time: {:.4f}s'.format((time.time() - begin_time) / args.display_iter).ljust(print_num_minus, ' '), '|')
+                print('-' * print_num)
+                print('| Epoch Time: {:.4f}s'.format((time.time() - begin_time) / args.display_iter).ljust(print_num_minus, ' '), '|')
             torch.cuda.empty_cache()
         torch.cuda.empty_cache()
 
-    if rank == args.rank_index:
-        time_elapsed = time.time() - since
-        m, s = divmod(time_elapsed, 60)
-        h, m = divmod(m, 60)
+    #if rank == args.rank_index:
+    time_elapsed = time.time() - since
+    m, s = divmod(time_elapsed, 60)
+    h, m = divmod(m, 60)
 
-        print('=' * print_num)
-        print('| Training Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
-        print('-' * print_num)
-        print_best_sup(cfg['NUM_CLASSES'], best_val_eval_list, print_num_minus)
-        print('=' * print_num)
+    print('=' * print_num)
+    print('| Training Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
+    print('-' * print_num)
+    print_best_sup(cfg['NUM_CLASSES'], best_val_eval_list, print_num_minus)
+    print('=' * print_num)

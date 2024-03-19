@@ -84,12 +84,14 @@ class dataset_it_dtc(Dataset):
                         mask2=tio.LabelMap(mask_path_2),
                         mask3=tio.LabelMap(mask_path_3),
                         ID=i)
+                    subject_1['mask'][tio.DATA][subject_1['mask'][tio.DATA]==255] = 1
                 else:
                     subject_1 = tio.Subject(
                         image=tio.ScalarImage(image_path_1),
                         mask=tio.LabelMap(mask_path_1),
                         mask2=tio.LabelMap(mask_path_2),
                         ID=i)
+                    subject_1['mask'][tio.DATA][subject_1['mask'][tio.DATA]==255] = 1
             else:
                 subject_1 = tio.Subject(image=tio.ScalarImage(image_path_1), ID=i)
 
@@ -140,6 +142,7 @@ class dataset_iit(Dataset):
             if sup:
                 mask_path_1 = os.path.join(mask_dir_1, i)
                 subject_1 = tio.Subject(image=tio.ScalarImage(image_path_1), image2=tio.ScalarImage(image_path_2), mask=tio.LabelMap(mask_path_1), ID=i)
+                subject_1['mask'][tio.DATA][subject_1['mask'][tio.DATA]==255] = 1
             else:
                 subject_1 = tio.Subject(image=tio.ScalarImage(image_path_1), image2=tio.ScalarImage(image_path_2), ID=i)
 

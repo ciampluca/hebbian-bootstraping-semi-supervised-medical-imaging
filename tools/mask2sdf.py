@@ -8,8 +8,8 @@ from skimage import segmentation
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', default='//10.0.5.233/shared_data/XNet/dataset/LiTS/val')
-    parser.add_argument('--num_classes', default=3)
+    parser.add_argument('--data_path', default='/mnt/Workspace/hebbian-bootstraping-semi-supervised-medical-imaging/data/Atrial/val')
+    parser.add_argument('--num_classes', default=2)
     args = parser.parse_args()
 
     mask_path = args.data_path + '/mask'
@@ -24,6 +24,7 @@ if __name__ == '__main__':
 
             mask = sitk.ReadImage(os.path.join(mask_path, j))
             mask_np = sitk.GetArrayFromImage(mask)
+            mask_np[mask_np == 255] = 1
 
             mask_np[mask_np != (i+1)] = 0
             mask_np = mask_np.astype(bool)

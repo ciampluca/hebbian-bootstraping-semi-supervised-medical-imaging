@@ -105,11 +105,11 @@ def eval_pixel(mask_list, seg_result_list, num_classes):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pred_path', default='/mnt/data1/XNet/seg_pred/test/LiTS/best_result1_Jc_0.7677_mor')
-    parser.add_argument('--mask_path', default='/mnt/data1/XNet/dataset/LiTS/val/mask')
+    parser.add_argument('--pred_path', default='/mnt/Workspace/hebbian-bootstraping-semi-supervised-medical-imaging/seg_pred/test/Atrial/best_vnet_Jc_0.8569_mor')
+    parser.add_argument('--mask_path', default='/mnt/Workspace/hebbian-bootstraping-semi-supervised-medical-imaging/data/Atrial/val/mask')
     parser.add_argument('--if_3D', default=True)
     parser.add_argument('--resize_shape', default=(128, 128))
-    parser.add_argument('--num_classes', default=3)
+    parser.add_argument('--num_classes', default=2)
     args = parser.parse_args()
 
     pred_list = []
@@ -130,8 +130,9 @@ if __name__ == '__main__':
 
             mask = sitk.ReadImage(mask_path)
             mask = sitk.GetArrayFromImage(mask)
-
+            mask[mask==255] = 1
         else:
+            # TODO se si fa la eval da qui controllare cosa viene caricato in pred e mask
             pred = Image.open(pred_path)
             # pred = pred.resize((args.resize_shape[1], args.resize_shape[0]))
             pred = np.array(pred)

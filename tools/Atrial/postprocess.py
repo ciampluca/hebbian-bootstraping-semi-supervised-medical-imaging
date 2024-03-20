@@ -21,8 +21,8 @@ def save_max_objects(image):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pred_path', default='//10.0.5.233/shared_data//XNet/seg_pred/test/Atrial/best_DTC_Jc_0.8730')
-    parser.add_argument('--save_path', default='//10.0.5.233/shared_data//XNet/seg_pred/test/Atrial/best_DTC_Jc_0.8730_mor')
+    parser.add_argument('--pred_path', default='/mnt/Workspace/hebbian-bootstraping-semi-supervised-medical-imaging/seg_pred/test/Atrial/best_vnet_Jc_0.8569')
+    parser.add_argument('--save_path', default='/mnt/Workspace/hebbian-bootstraping-semi-supervised-medical-imaging/seg_pred/test/Atrial/best_vnet_Jc_0.8569_mor')
     parser.add_argument('--fill_hole_thr', default=500, help='300-500')
     args = parser.parse_args()
 

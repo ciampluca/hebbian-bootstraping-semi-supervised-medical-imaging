@@ -28,7 +28,10 @@ simplefilter(action='ignore', category=FutureWarning)
 
 # TODO aggiungere supporto tensorboard
 # TODO aggiungere suppporto salvataggio risultati
-# TODO aggiungere supporto per fare esperimenti su una frazione di dati, cosi come è ora è fatto a merda; in realtà guardare meglio c'è la possibilità di passare num images nel dataset
+# TODO il supporto per i training a regime ridotto è fatto male, praticamente bisogna creare a mano le cartelle sup_20
+# quando c'è anche la unsup_80 è poi fatto in maniera un pò strana, praticamente prende num=len(immaginia-sup-20) dalla cartella unsup_80; quindi questa
+# ultima penso sia meglio che contenga tutte le immagini, in ogni caso la roba sup non la prende da sup_20
+# per renderlo un pò migliore quindi penso che basti passargli il numero di immagini al sup_20 e basta
 
 
 def init_seeds(seed):
@@ -60,7 +63,6 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--warm_up_duration', default=20)
     parser.add_argument('--momentum', default=0.9, type=float)
     parser.add_argument('--wd', default=-5, type=float, help='weight decay pow')
-
     parser.add_argument('-i', '--display_iter', default=5, type=int)
     parser.add_argument('-n', '--network', default='unet', type=str)
     parser.add_argument('--local_rank', default=-1, type=int)
@@ -115,11 +117,13 @@ if __name__ == '__main__':
 
     dataset_train = imagefloder_itn(
         data_dir=args.path_dataset + '/train_sup_' + args.sup_mark,
+        #data_dir=args.path_dataset + '/train_sup_100',
         input1=args.input1,
         data_transform_1=data_transforms['train'],
         data_normalize_1=data_normalize,
         sup=True,
         num_images=None,
+        #percentage_train_images=int(args.sup_mark),
     )
     dataset_val = imagefloder_itn(
         data_dir=args.path_dataset + '/val',

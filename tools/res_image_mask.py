@@ -6,7 +6,7 @@ import SimpleITK as sitk
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', default='//10.0.5.233/shared_data/XNet/dataset/Atrial/train_sup_100')
+    parser.add_argument('--data_path', default='/mnt/Workspace/hebbian-bootstraping-semi-supervised-medical-imaging/data/LA/train_sup_100')
     args = parser.parse_args()
 
     image_path = args.data_path + '/image'

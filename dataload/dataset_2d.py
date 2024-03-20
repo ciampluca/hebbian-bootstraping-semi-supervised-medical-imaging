@@ -5,9 +5,10 @@ from PIL import Image
 import cv2
 import numpy as np
 import pywt
+import math
 
 class dataset_itn(Dataset):
-    def __init__(self, data_dir, input1, augmentation_1, normalize_1, sup=True, num_images=None, **kwargs):
+    def __init__(self, data_dir, input1, augmentation_1, normalize_1, sup=True, num_images=None, percentage_train_images=100, **kwargs):
         super(dataset_itn, self).__init__()
 
         img_paths_1 = []
@@ -30,7 +31,10 @@ class dataset_itn(Dataset):
             assert len(img_paths_1) == len(mask_paths)
 
         if num_images is not None:
+        #if percentage_train_images < 100:
             len_img_paths = len(img_paths_1)
+            #num_images = math.ceil((len_img_paths / 100) * percentage_train_images)
+
             quotient = num_images // len_img_paths
             remainder = num_images % len_img_paths
 
@@ -93,13 +97,14 @@ class dataset_itn(Dataset):
         return len(self.img_paths_1)
 
 
-def imagefloder_itn(data_dir, input1, data_transform_1, data_normalize_1, sup=True, num_images=None, **kwargs):
+def imagefloder_itn(data_dir, input1, data_transform_1, data_normalize_1, sup=True, num_images=None, percentage_train_images=100, **kwargs):
     dataset = dataset_itn(data_dir=data_dir,
                            input1=input1,
                            augmentation_1=data_transform_1,
                            normalize_1=data_normalize_1,
                            sup=sup,
                            num_images=num_images,
+                           percentage_train_images=percentage_train_images,
                            **kwargs
                            )
     return dataset

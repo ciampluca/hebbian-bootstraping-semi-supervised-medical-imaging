@@ -29,7 +29,7 @@ def adjust_hebbian_params(hebb_params):
     if mode.endswith('_t'): adj_hebb_params['mode'] = mode[:-2]
     return adj_hebb_params
 
-def init_weights(m, init_type='normal', gain=0.02):
+def init_weights(m, init_type='kaiming', gain=0.02):
     if init_type == 'normal':
         nn.init.normal_(m.weight.data, 0.0, gain)
     elif init_type == 'xavier':
@@ -42,7 +42,7 @@ def init_weights(m, init_type='normal', gain=0.02):
         raise NotImplementedError("Unsupported initialization method {}".format(init_type))
     return m
 
-def makehebbian(model, exclude=None, hebb_params=None):
+def makehebbian(model, exclude=None, hebb_params=None, disable_grad=True):
     if hebb_params is None: hebb_params = default_hebb_params
     
     def _match(n, e):
@@ -83,7 +83,7 @@ def makehebbian(model, exclude=None, hebb_params=None):
                     FlattenLast(2),
                 ))
             else:
-                for p in m.parameters(): p.requires_grad = False
+                for p in m.parameters(recurse=False): p.requires_grad = not disable_grad
     
     model.apply(_makehebbian)
 

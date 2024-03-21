@@ -19,7 +19,7 @@ class HebbianConv2d(nn.Module):
 	MODE_HPCA = 'hpca'
 	MODE_CONTRASTIVE = 'contrastive'
 
-	def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+	def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True,
 	             w_nrm=True, act=nn.Identity(),
 	             mode=MODE_SWTA, k=1, patchwise=True,
 	             contrast=1., uniformity=False, alpha=0.):
@@ -28,7 +28,8 @@ class HebbianConv2d(nn.Module):
 		:param out_channels: output channels of the convolutional kernel
 		:param in_channels: input channels of the convolutional kernel
 		:param kernel_size: size of the convolutional kernel (int or tuple)
-		:param stride: stride of the convolutional kernel (int or tuple
+		:param stride: stride of the convolutional kernel (int or tuple)
+		:param stride: padding to apply before convolution (int or tuple)
 		:param w_nrm: whether to normalize the weight vectors before computing outputs
 		:param act: the nonlinear activation function after convolution
 		:param mode: the learning mode, either 'swta' or 'hpca'
@@ -46,12 +47,13 @@ class HebbianConv2d(nn.Module):
 		self.out_channels = out_channels
 		self.in_channels = in_channels
 		self.kernel_size = _pair(kernel_size)
+		self.padding = padding
 		self.stride = _pair(stride)
 
 		self.weight = nn.Parameter(torch.empty((self.out_channels, self.in_channels, *self.kernel_size)), requires_grad=True)
 		nn.init.xavier_normal_(self.weight)
 		self.w_nrm = w_nrm
-		self.bias = nn.Parameter(torch.zeros(self.out_channels), requires_grad=True)
+		self.bias = nn.Parameter(torch.zeros(self.out_channels), requires_grad=bias)
 		self.act = act
 		self.register_buffer('delta_w', torch.zeros_like(self.weight))
 
@@ -75,7 +77,12 @@ class HebbianConv2d(nn.Module):
 		y = self.act(self.apply_weights(x, w))
 		return y
 	
+	def pad(self, x):
+		pad = [self.padding]*4 if isinstance(self.padding, int) else [self.padding[0], self.padding[0], self.padding[1], self.padding[1]] if len(self.padding) == 2 else self.padding
+		return F.pad(x, pad)
+	
 	def forward(self, x):
+		x = self.pad(x)
 		y = self.compute_activation(x)
 		if self.training and self.alpha != 0: self.compute_update(x, y)
 		return y
@@ -136,7 +143,7 @@ class HebbianConv2d(nn.Module):
 					x_unf = F.unfold(x, _pair(3), padding=_pair(1))
 					x_unf = x_unf.permute(0, 2, 1).reshape(x_unf.size(0), x_unf.size(2), x.size(1), 9)
 					uniformity_map = (x_unf.sum(-1).reshape(-1, x.size(1)) * x.permute(0, 2, 3, 1).reshape(-1, x.size(1))).sum(dim=-1, keepdim=True)
-					uniformity_map = self.apply_weights(uniformity_map.reshape(x.size(0), 1, x.size(1), x.size(2)), torch.ones([1, 1, *self.kernel_size], device=x.device, dtype=x.dtype)).reshape(-1, 1)
+					uniformity_map = self.apply_weights(uniformity_map.reshape(x.size(0), 1, *x.shape[2:]), torch.ones([1, 1, *self.kernel_size], device=x.device, dtype=x.dtype)).reshape(-1, 1)
 				L = L * uniformity_map
 			
 			# Negative contribution
@@ -180,7 +187,7 @@ class HebbianConvTranspose2d(HebbianConv2d):
 	MODE_SWTA_T = 'swta_t'
 	MODE_HPCA_T = 'hpca_t'
 
-	def __init__(self, in_channels, out_channels, kernel_size, stride=1, w_nrm=True, act=nn.Identity(),
+	def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True, w_nrm=True, act=nn.Identity(),
 	             mode=MODE_SWTA_T, k=1, patchwise=False, contrast=1., uniformity=False, alpha=0.):
 		"""
 		
@@ -198,7 +205,7 @@ class HebbianConvTranspose2d(HebbianConv2d):
 		:param uniformity: whether to use uniformity weighting in contrastive-type learning.
 		"""
 		
-		super().__init__(in_channels, out_channels, kernel_size, stride, w_nrm, act, mode, k, patchwise, contrast, uniformity, alpha)
+		super().__init__(in_channels, out_channels, kernel_size, stride, padding, bias, w_nrm, act, mode, k, patchwise, contrast, uniformity, alpha)
 		with torch.no_grad():
 			self.weight.transpose_(0, 1)
 			self.delta_w.transpose_(0, 1)

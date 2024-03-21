@@ -23,6 +23,8 @@ def get_network(network, in_channels, num_classes, **kwargs):
         net = XNet_3_3_m(in_channels, num_classes)
     elif network == 'unet':
         net = unet(in_channels, num_classes)
+    elif network == 'hunet':
+        net = hunet(in_channels, num_classes)
     elif network == 'unet_plusplus' or network == 'unet++':
         net = unet_plusplus(in_channels, num_classes)
     elif network == 'r2unet':

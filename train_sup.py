@@ -22,6 +22,10 @@ from config.augmentation.online_aug import data_transform_2d, data_normalize_2d
 from loss.loss_function import segmentation_loss
 from models.getnetwork import get_network
 from dataload.dataset_2d import imagefloder_itn
+
+from hebb.makehebbian import makehebbian
+from models.networks_2d.unet import init_weights as init_weights_unet
+
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
 
@@ -69,6 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--rank_index', default=0, help='0, 1, 2, 3')
     parser.add_argument('-v', '--vis', default=False, help='need visualization or not')
     parser.add_argument('--visdom_port', default=16672, help='16672')
+    parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
     args = parser.parse_args()
 
     #torch.cuda.set_device(args.local_rank)
@@ -145,6 +150,26 @@ if __name__ == '__main__':
 
     # Model
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
+
+    if args.load_hebbian_weights:
+        state_dict = torch.load(args.load_hebbian_weights, map_location='cpu')
+        hebb_params = state_dict['hebb_params']
+        hebb_params['alpha'] = 0
+        exclude = state_dict['excluded_layers']
+        model = makehebbian(model, exclude=exclude, hebb_params=hebb_params)
+        model.load_state_dict(state_dict['model'])
+
+        if exclude is None: exclude = []
+        exclude = [(n, m) for n, m in model.named_modules() if any([n == e for e in exclude])]
+        print("Layers excluded from conversion to Hebbian: {}".format([n for n, m in exclude]))
+        exclude = [m for _, p in exclude for m in [*p.modules()]]
+
+        for m in exclude:
+            init_weights_unet(m, init_type='kaiming')
+
+        for p in model.parameters():
+            p.requires_grad = True
+
     model = model.cuda()
     #model = DistributedDataParallel(model, device_ids=[args.local_rank])
     # TODO

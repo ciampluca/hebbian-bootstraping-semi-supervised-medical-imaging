@@ -38,5 +38,18 @@ def test_makehebbian():
 	print(*[n for n, _ in net.named_modules()])
 	print(*[n for n, _ in net.named_parameters()])
 
+def test_makehebbian3d():
+	from models.getnetwork import get_network
+	net = get_network('unet3d', 3, 2)
+	
+	makehebbian(net, exclude=['conv'], hebb_params={})
+	
+	print(net)
+	
+	net.train()
+	inputs = torch.randn(4, 3, 16, 128, 128)
+	outputs = net(inputs)
+	print(outputs.shape)
+
 if __name__ == '__main__':
-	test_makehebbian()
+	test_makehebbian3d()

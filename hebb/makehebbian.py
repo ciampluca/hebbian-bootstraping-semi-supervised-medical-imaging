@@ -83,4 +83,6 @@ def makehebbian(model, exclude=None, hebb_params=None):
                 for p in m.parameters(recurse=False): p.requires_grad = False
     
     model.apply(_makehebbian)
+    
+    return model
 

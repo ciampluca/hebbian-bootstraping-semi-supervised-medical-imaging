@@ -224,7 +224,12 @@ def save_val_best_sup_2d(num_classes, best_list, model, score_list_val, name_lis
                     os.path.join(path_trained_model, 'best_Jc.pth'),
                 )
             else:
-                torch.save(model.state_dict(), os.path.join(path_trained_model, 'best_Jc.pth'))
+                # save last model
+                torch.save({
+                    'model': model.state_dict(),
+                    },
+                    os.path.join(path_trained_model, 'best_Jc.pth'),
+                )
 
             score_list_val = torch.softmax(score_list_val, dim=1)
             pred_results = score_list_val[:, 1, :, :].cpu().numpy()

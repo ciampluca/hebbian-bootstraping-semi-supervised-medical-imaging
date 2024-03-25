@@ -28,8 +28,6 @@ from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
 
 
-# TODO aggiungere suppporto salvataggio risultati
-
 
 def init_seeds(seed):
     torch.manual_seed(seed)
@@ -44,14 +42,13 @@ def init_seeds(seed):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+
     parser.add_argument('--device', default=0, type=int)
-    parser.add_argument('--path_trained_models', default='checkpoints/hebbian_unsup')
-    parser.add_argument('--path_results', default='results/hebbian_unsup')
+    parser.add_argument('--path_root_exp', default='./runs')
     parser.add_argument('--path_dataset', default='data/GlaS')
     parser.add_argument('--dataset_name', default='GlaS', help='GlaS')
     parser.add_argument('--input1', default='image')
-    parser.add_argument('--sup_mark', default='100')
-    parser.add_argument('-b', '--batch_size', default=4, type=int)
+    parser.add_argument('-b', '--batch_size', default=2, type=int)
     parser.add_argument('-e', '--num_epochs', default=200, type=int)
     parser.add_argument('-s', '--step_size', default=50, type=int)
     parser.add_argument('--optimizer', default="adam", type=str, help="adam, sgd")
@@ -89,7 +86,7 @@ if __name__ == '__main__':
     print_num_minus = print_num - 2
 
     # create folders
-    path_run = os.path.join("runs", os.path.split(args.path_dataset)[1], "hebbian_unsup", "{}_{}".format(args.network, args.hebb_mode), "inv_temp-{}".format(int(args.hebb_inv_temp)), "regime-1.0", "run-{}".format(args.seed))
+    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "hebbian_unsup", "{}_{}".format(args.network, args.hebb_mode), "inv_temp-{}".format(int(args.hebb_inv_temp)), "regime-100", "run-{}".format(args.seed))
     if not os.path.exists(path_run):
         os.makedirs(path_run)
     path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))
@@ -126,7 +123,7 @@ if __name__ == '__main__':
     data_normalize = data_normalize_2d(cfg[input1_mean], cfg[input1_std])
 
     dataset_train = imagefloder_itn(
-        data_dir=args.path_dataset + '/train_sup_' + args.sup_mark,
+        data_dir=args.path_dataset + '/train',
         input1=args.input1,
         data_transform_1=data_transforms['train'],
         data_normalize_1=data_normalize,

@@ -132,7 +132,5 @@ dmypy.json
 .tool-versions
 .idea
 /.vscode/
-/.checkpoints/
-/.seg_pred/
-/.data/
-/.runs/
+data/
+runs/

@@ -1,14 +1,18 @@
 import os
-import torch
-from torch.utils.data import Dataset, DataLoader
-from PIL import Image
-import cv2
 import numpy as np
-import pywt
 import math
+import random
+
+from PIL import Image
+import pywt
+
+import torch
+from torch.utils.data import Dataset
+
+
 
 class dataset_itn(Dataset):
-    def __init__(self, data_dir, input1, augmentation_1, normalize_1, sup=True, num_images=None, percentage_train_images=100, **kwargs):
+    def __init__(self, data_dir, input1, augmentation_1, normalize_1, sup=True, num_images=None, regime=100, seed=0, **kwargs):
         super(dataset_itn, self).__init__()
 
         img_paths_1 = []
@@ -30,26 +34,19 @@ class dataset_itn(Dataset):
         if sup:
             assert len(img_paths_1) == len(mask_paths)
 
-        if num_images is not None:
-        #if percentage_train_images < 100:
+        if regime < 100:
             len_img_paths = len(img_paths_1)
-            #num_images = math.ceil((len_img_paths / 100) * percentage_train_images)
+            num_images = math.ceil((len_img_paths / 100) * regime)
 
-            quotient = num_images // len_img_paths
-            remainder = num_images % len_img_paths
+            shuffled_img_paths_1 = img_paths_1.copy()
+            random.Random(seed).shuffle(shuffled_img_paths_1)
+            regime_img_paths_1 = shuffled_img_paths_1[:num_images]
+            indices = [i for i in range(len(img_paths_1)) if img_paths_1[i] in regime_img_paths_1]
+            img_paths_1 = sorted(regime_img_paths_1)
 
-            if num_images <= len_img_paths:
-                img_paths_1 = img_paths_1[:num_images]
-            else:
-                rand_indices = torch.randperm(len_img_paths).tolist()
-                new_indices = rand_indices[:remainder]
-
-                img_paths_1 = img_paths_1 * quotient
-                img_paths_1 += [img_paths_1[i] for i in new_indices]
-
-                if sup:
-                    mask_paths = mask_paths * quotient
-                    mask_paths += [mask_paths[i] for i in new_indices]
+            if sup:
+                regime_mask_paths = [mask_paths[i] for i in indices]
+                mask_paths = sorted(regime_mask_paths)
 
         self.img_paths_1 = img_paths_1
         self.mask_paths = mask_paths
@@ -69,8 +66,6 @@ class dataset_itn(Dataset):
             mask = Image.open(mask_path)
             mask = np.array(mask)
             mask[mask > 0] = 1
-            #if mask.ndim == 2:
-            #    mask = mask[..., np.newaxis]
 
             augment_1 = self.augmentation_1(image=img_1, mask=mask)
             img_1 = augment_1['image']
@@ -97,14 +92,14 @@ class dataset_itn(Dataset):
         return len(self.img_paths_1)
 
 
-def imagefloder_itn(data_dir, input1, data_transform_1, data_normalize_1, sup=True, num_images=None, percentage_train_images=100, **kwargs):
+def imagefloder_itn(data_dir, input1, data_transform_1, data_normalize_1, sup=True, num_images=None, regime=100, **kwargs):
     dataset = dataset_itn(data_dir=data_dir,
                            input1=input1,
                            augmentation_1=data_transform_1,
                            normalize_1=data_normalize_1,
                            sup=sup,
                            num_images=num_images,
-                           percentage_train_images=percentage_train_images,
+                           regime=regime,
                            **kwargs
                            )
     return dataset

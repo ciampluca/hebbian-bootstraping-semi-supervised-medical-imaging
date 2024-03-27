@@ -12,18 +12,18 @@ from torch.utils.data import Dataset
 
 
 class dataset_itn(Dataset):
-    def __init__(self, data_dir, input1, augmentation_1, normalize_1, sup=True, num_images=None, regime=100, seed=0, **kwargs):
+    def __init__(self, data_dir, input1, augmentation_1, normalize_1, sup=True, regime=100, seed=0, **kwargs):
         super(dataset_itn, self).__init__()
 
         img_paths_1 = []
         mask_paths = []
 
         image_dir_1 = data_dir + '/' + input1
+
         if sup:
             mask_dir = data_dir + '/mask'
 
         for image in os.listdir(image_dir_1):
-
             image_path_1 = os.path.join(image_dir_1, image)
             img_paths_1.append(image_path_1)
 
@@ -92,13 +92,12 @@ class dataset_itn(Dataset):
         return len(self.img_paths_1)
 
 
-def imagefloder_itn(data_dir, input1, data_transform_1, data_normalize_1, sup=True, num_images=None, regime=100, **kwargs):
+def imagefloder_itn(data_dir, input1, data_transform_1, data_normalize_1, sup=True, regime=100, **kwargs):
     dataset = dataset_itn(data_dir=data_dir,
                            input1=input1,
                            augmentation_1=data_transform_1,
                            normalize_1=data_normalize_1,
                            sup=sup,
-                           num_images=num_images,
                            regime=regime,
                            **kwargs
                            )

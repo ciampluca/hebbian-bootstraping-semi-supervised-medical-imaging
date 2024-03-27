@@ -4,32 +4,6 @@ from scipy.spatial.distance import directed_hausdorff
 import torch
 
 
-def evaluate(y_scores, y_true, ranges=[0, 0.9], interval=0.02):
-
-    y_scores = torch.softmax(y_scores, dim=1)
-    y_scores = y_scores[:, 1, ...].cpu().detach().numpy().flatten()
-    y_true = y_true.data.cpu().numpy().flatten()
-
-    thresholds = np.arange(ranges[0], ranges[1], interval)
-    jaccard = np.zeros(len(thresholds))
-    dice = np.zeros(len(thresholds))
-    y_true.astype(np.int8)
-
-    for indy in range(len(thresholds)):
-        threshold = thresholds[indy]
-        y_pred = (y_scores > threshold).astype(np.int8)
-
-        sum_area = (y_pred + y_true)
-        tp = float(np.sum(sum_area == 2))
-        union = np.sum(sum_area == 1)
-        jaccard[indy] = tp / float(union + tp)
-        dice[indy] = 2 * tp / float(union + 2 * tp)
-
-    thred_indx = np.argmax(jaccard)
-    m_jaccard = jaccard[thred_indx]
-    m_dice = dice[thred_indx]
-
-    return thresholds[thred_indx], m_jaccard, m_dice
 
 
 def evaluate_multi(y_scores, y_true):

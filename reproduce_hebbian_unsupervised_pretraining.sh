@@ -28,6 +28,10 @@ DATASETS_3D=(
     Atrial
 )
 
+HEBB_MODES=(
+    swta_t
+)
+
 DATA_ROOT=./data
 EXP_ROOT=./runs
 
@@ -36,7 +40,9 @@ EXP_ROOT=./runs
 # Train & Test
 for K in ${K_VALUES[@]}; do
     for DATASET in ${DATASETS_2D[@]}; do
-        python pretrain_hebbian_unsup_2d.py --dataset_name $DATASET --network unet --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --batch_size $BATCH_SIZE --optimizer adam --seed 0 --validate_iter 2 --device $GPU --lr 0.5 --loss dice --hebb_mode swta_t --hebb_inv_temp $K --threshold 0.5
-        python test_2d.py --dataset_name $DATASET --network unet --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/hebbian_unsup/unet/inv_temp-$K/regime-100/run-0
+        for HEBB_MODE in ${HEBB_MODES[@]}; do
+            python pretrain_hebbian_unsup_2d.py --dataset_name $DATASET --network unet --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --batch_size $BATCH_SIZE --optimizer adam --seed 0 --validate_iter 2 --device $GPU --lr 0.5 --loss dice --hebb_mode $HEBB_MODE --hebb_inv_temp $K --threshold 0.5
+            python test_2d.py --dataset_name $DATASET --network unet --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/hebbian_unsup/unet_$HEBB_MODE/inv_temp-$K/regime-100/run-0 --hebbian_pretrain True
+        done
     done
 done

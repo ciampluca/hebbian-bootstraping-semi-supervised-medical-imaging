@@ -52,7 +52,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--display_iter', default=1, type=int)
     parser.add_argument('--validate_iter', default=2, type=int)
     parser.add_argument('-n', '--network', default='unet', type=str)
-    parser.add_argument('--debug', default=False)
+    parser.add_argument('--debug', default=True)
     
     parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
     parser.add_argument('--hebbian_rule', default='swta_t', type=str, help='hebbian rules to be used')
@@ -198,6 +198,7 @@ if __name__ == '__main__':
         for i, data in enumerate(dataloaders['train']):
             inputs_train = Variable(data['image'].cuda())
             mask_train = Variable(data['mask'].cuda())
+            name_train = data['ID']
             if mask_train.dim() == 3:
                 mask_train = torch.unsqueeze(mask_train, dim=1)
 
@@ -218,13 +219,14 @@ if __name__ == '__main__':
             optimizer.step()
             train_loss += loss_train.item()
 
-            if count_iter % args.display_iter == 0:
-                if i == 0:
-                    score_list_train = outputs_train
-                    mask_list_train = mask_train
-                elif 0 < i <= num_batches['train_sup'] / 4:
-                    score_list_train = torch.cat((score_list_train, outputs_train), dim=0)
-                    mask_list_train = torch.cat((mask_list_train, mask_train), dim=0)
+            if i == 0:
+                score_list_train = outputs_train
+                mask_list_train = mask_train
+                name_list_train = name_train
+            else:
+                score_list_train = torch.cat((score_list_train, outputs_train), dim=0)
+                mask_list_train = torch.cat((mask_list_train, mask_train), dim=0)
+                name_list_train = np.append(name_list_train, name_train, axis=0)
 
         scheduler_warmup.step()
         torch.cuda.empty_cache()
@@ -234,6 +236,8 @@ if __name__ == '__main__':
             print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
             train_epoch_loss = compute_epoch_loss(train_loss, num_batches, print_num, print_num_minus)
             train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus)
+            if args.debug:
+                save_preds(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, cfg['PALETTE'])
             torch.cuda.empty_cache()
 
             # saving metrics to tensorboard writer

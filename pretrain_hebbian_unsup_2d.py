@@ -53,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument('--threshold', default=None,  type=float)
     parser.add_argument('--thr_interval', default=0.02,  type=float)
     parser.add_argument('-n', '--network', default='unet', type=str)
-    parser.add_argument('--debug', default=False)
+    parser.add_argument('--debug', default=True)
     
     parser.add_argument('--exclude', nargs='*', default=['Conv_1x1'], type=str, 
                         help="Full name of the layers to exclude from conversion to Hebbian. These names depend on how they were called in the specific network that you wish to use.")
@@ -175,6 +175,7 @@ if __name__ == '__main__':
         for i, data in enumerate(dataloaders['train']):
             inputs_train = Variable(data['image'].cuda())
             mask_train = Variable(data['mask'].cuda())
+            name_train = data['ID']
             if mask_train.dim() == 3:
                 mask_train = torch.unsqueeze(mask_train, dim=1)
 
@@ -199,13 +200,14 @@ if __name__ == '__main__':
             optimizer.step()
             train_loss += loss_train.item()
 
-            if count_iter % args.display_iter == 0:
-                if i == 0:
-                    score_list_train = outputs_train
-                    mask_list_train = mask_train
-                elif 0 < i <= num_batches['pretrain_unsup'] / 4:
-                    score_list_train = torch.cat((score_list_train, outputs_train), dim=0)
-                    mask_list_train = torch.cat((mask_list_train, mask_train), dim=0)
+            if i == 0:
+                score_list_train = outputs_train
+                mask_list_train = mask_train
+                name_list_train = name_train
+            else:
+                score_list_train = torch.cat((score_list_train, outputs_train), dim=0)
+                mask_list_train = torch.cat((mask_list_train, mask_train), dim=0)
+                name_list_train = np.append(name_list_train, name_train, axis=0)
 
         scheduler_warmup.step()
         torch.cuda.empty_cache()
@@ -218,6 +220,8 @@ if __name__ == '__main__':
                 train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus, thr_ranges=[args.threshold, args.threshold+(args.thr_interval/2)])
             else:
                 train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus)
+            if args.debug:
+                save_preds(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, cfg['PALETTE'])
             torch.cuda.empty_cache()
 
             # saving metrics to tensorboard writer

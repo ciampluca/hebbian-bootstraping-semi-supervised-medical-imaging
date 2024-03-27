@@ -53,7 +53,7 @@ def save_snapshot(model, path, threshold=None, save_best=False, hebb_params=None
 
 def save_preds(score_list_val, threshold, name_list_val, path_seg_results, palette):
     score_list_val = torch.softmax(score_list_val, dim=1)
-    pred_results = score_list_val[:, 1, :, :].cpu().numpy()
+    pred_results = score_list_val[:, 1, :, :].cpu().detach().numpy()
     pred_results[pred_results > threshold] = 1
     pred_results[pred_results <= threshold] = 0
 

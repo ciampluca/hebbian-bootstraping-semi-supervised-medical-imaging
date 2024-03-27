@@ -14,6 +14,8 @@ from models.getnetwork import get_network
 from dataload.dataset_2d import imagefloder_itn
 from utils import save_preds, evaluate
 
+from hebb.makehebbian import makehebbian
+
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
 
@@ -33,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--thr_interval', default=0.02,  type=float)
     parser.add_argument('-b', '--batch_size', default=4, type=int)
     parser.add_argument('-n', '--network', default='unet', type=str)
+    parser.add_argument('--hebbian_pretrain', default=False)
 
     args = parser.parse_args()
 
@@ -81,6 +84,10 @@ if __name__ == '__main__':
     name_snapshot = 'last' if args.best == 'last' else 'best_{}'.format(args.best)
     path_snapshot = os.path.join(args.path_exp, 'checkpoints', '{}.pth'.format(name_snapshot))
     state_dict = torch.load(path_snapshot, map_location='cpu')
+    if args.hebbian_pretrain:
+        hebb_params = state_dict['hebb_params']
+        exclude = state_dict['excluded_layers']
+        model = makehebbian(model, exclude=exclude, hebb_params=hebb_params)
     model.load_state_dict(state_dict['model'])
     threshold = state_dict['threshold'] if args.threshold is None else args.threshold
     model = model.cuda()

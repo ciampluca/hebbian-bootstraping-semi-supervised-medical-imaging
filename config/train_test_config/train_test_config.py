@@ -332,26 +332,7 @@ def print_best(num_classes, best_val_list, best_model, best_result, path_trained
 
 
 
-def save_test_3d(num_classes, score_test, name_test, threshold, path_seg_results, affine):
 
-    if num_classes == 2:
-        score_list_test = torch.softmax(score_test, dim=0)
-        pred_results = score_list_test[1, ...].cpu()
-        pred_results[pred_results > threshold] = 1
-        pred_results[pred_results <= threshold] = 0
-
-        pred_results = pred_results.type(torch.uint8)
-
-        output_image = tio.ScalarImage(tensor=pred_results.unsqueeze(0), affine=affine)
-        output_image.save(os.path.join(path_seg_results, name_test))
-
-    else:
-        pred_results = torch.max(score_test, 0)[1]
-        pred_results = pred_results.cpu()
-        pred_results = pred_results.type(torch.uint8)
-
-        output_image = tio.ScalarImage(tensor=pred_results.unsqueeze(0), affine=affine)
-        output_image.save(os.path.join(path_seg_results, name_test))
 
 
 

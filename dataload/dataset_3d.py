@@ -1,21 +1,24 @@
 import os
-import torch
-from torch.utils.data import Dataset, DataLoader
-from PIL import Image
-import cv2
 import numpy as np
+import math
+import random
+
+import torch
+
 import torchio as tio
-import SimpleITK as sitk
-from torchio.data import UniformSampler, LabelSampler
+from torchio.data import UniformSampler
+
+from torch.utils.data import Dataset
+
 
 
 class dataset_it(Dataset):
-    def __init__(self, data_dir, input1, transform_1, queue_length=20, samples_per_volume=5, patch_size=128, num_workers=8, shuffle_subjects=True, shuffle_patches=True, sup=True, num_images=None):
+    def __init__(self, data_dir, input1, transform_1, queue_length=20, samples_per_volume=5, patch_size=128, num_workers=8, shuffle_subjects=True, shuffle_patches=True, sup=True, regime=100, seed=0, **kwargs):
         super(dataset_it, self).__init__()
 
         self.subjects_1 = []
-
         image_dir_1 = data_dir + '/' + input1
+        
         if sup:
             mask_dir = data_dir + '/mask'
 
@@ -30,19 +33,12 @@ class dataset_it(Dataset):
 
             self.subjects_1.append(subject_1)
 
-        if num_images is not None:
+        if regime < 100:
             len_img_paths = len(self.subjects_1)
-            quotient = num_images // len_img_paths
-            remainder = num_images % len_img_paths
+            num_images = math.ceil((len_img_paths / 100) * regime)
 
-            if num_images <= len_img_paths:
-                self.subjects_1 = self.subjects_1[:num_images]
-            else:
-                rand_indices = torch.randperm(len_img_paths).tolist()
-                new_indices = rand_indices[:remainder]
-
-                self.subjects_1 = self.subjects_1 * quotient
-                self.subjects_1 += [self.subjects_1[i] for i in new_indices]
+            random.Random(seed).shuffle(self.subjects_1)
+            self.subjects_1 = self.subjects_1[:num_images]
 
         self.dataset_1 = tio.SubjectsDataset(self.subjects_1, transform=transform_1)
 
@@ -54,8 +50,8 @@ class dataset_it(Dataset):
             # sampler=LabelSampler(patch_size),
             num_workers=num_workers,
             shuffle_subjects=shuffle_subjects,
-            shuffle_patches=shuffle_patches
-        )
+            shuffle_patches=shuffle_patches,
+        ) 
 
 
 class dataset_it_dtc(Dataset):
@@ -125,7 +121,7 @@ class dataset_it_dtc(Dataset):
         )
 
 class dataset_iit(Dataset):
-    def __init__(self, data_dir, input1, input2, transform_1, queue_length=20, samples_per_volume=5, patch_size=128, num_workers=8, shuffle_subjects=True, shuffle_patches=True, sup=True, num_images=None):
+    def __init__(self, data_dir, input1, input2, transform_1, queue_length=20, samples_per_volume=5, patch_size=128, num_workers=8, shuffle_subjects=True, shuffle_patches=True, sup=True, regime=100, seed=0, **kwargs):
         super(dataset_iit, self).__init__()
 
         self.subjects_1 = []
@@ -139,6 +135,7 @@ class dataset_iit(Dataset):
         for i in os.listdir(image_dir_1):
             image_path_1 = os.path.join(image_dir_1, i)
             image_path_2 = os.path.join(image_dir_2, i)
+
             if sup:
                 mask_path_1 = os.path.join(mask_dir_1, i)
                 subject_1 = tio.Subject(image=tio.ScalarImage(image_path_1), image2=tio.ScalarImage(image_path_2), mask=tio.LabelMap(mask_path_1), ID=i)
@@ -148,19 +145,12 @@ class dataset_iit(Dataset):
 
             self.subjects_1.append(subject_1)
 
-        if num_images is not None:
+        if regime < 100:
             len_img_paths = len(self.subjects_1)
-            quotient = num_images // len_img_paths
-            remainder = num_images % len_img_paths
+            num_images = math.ceil((len_img_paths / 100) * regime)
 
-            if num_images <= len_img_paths:
-                self.subjects_1 = self.subjects_1[:num_images]
-            else:
-                rand_indices = torch.randperm(len_img_paths).tolist()
-                new_indices = rand_indices[:remainder]
-
-                self.subjects_1 = self.subjects_1 * quotient
-                self.subjects_1 += [self.subjects_1[i] for i in new_indices]
+            random.Random(seed).shuffle(self.subjects_1)
+            self.subjects_1 = self.subjects_1[:num_images]
 
         self.dataset_1 = tio.SubjectsDataset(self.subjects_1, transform=transform_1)
 

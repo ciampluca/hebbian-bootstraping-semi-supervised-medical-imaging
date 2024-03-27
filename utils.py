@@ -8,6 +8,7 @@ from PIL import Image
 import albumentations as A
 from medpy.metric.binary import hd95, assd
 from sklearn.metrics import confusion_matrix
+import torchio as tio
 
 
 
@@ -65,6 +66,21 @@ def save_preds(score_list_val, threshold, name_list_val, path_seg_results, palet
         color_results = Image.fromarray(pred_results[i].astype(np.uint8), mode='P')
         color_results.putpalette(palette)
         color_results.save(os.path.join(path_seg_results, name_list_val[i]))
+
+
+def save_preds_3d(score_list_val, threshold, name_list_val, path_seg_results, affine_list):
+    score_list_val = torch.softmax(score_list_val, dim=1)
+    pred_results = score_list_val[:, 1, ...].cpu().detach()
+    pred_results[pred_results > threshold] = 1
+    pred_results[pred_results <= threshold] = 0
+
+    pred_results = pred_results.type(torch.uint8)
+
+    if not os.path.exists(path_seg_results):
+            os.makedirs(path_seg_results)
+    for i in range(len(name_list_val)):
+        output_image = tio.ScalarImage(tensor=pred_results[i].unsqueeze(0), affine=affine_list[i])
+        output_image.save(os.path.join(path_seg_results, name_list_val[i]))
 
 
 def compute_epoch_loss(loss, num_batches, print_num, print_num_minus, train=True, print_on_screen=True, unsup_pretrain=False):

@@ -132,6 +132,7 @@ if __name__ == '__main__':
         shuffle_subjects=True,
         shuffle_patches=True,
         sup=True,
+        regime=args.regime,
         seed=args.seed,
     )
     dataset_val = dataset_it(
@@ -222,7 +223,6 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
             outputs_train = model(inputs_train)
-            torch.cuda.empty_cache()
 
             loss_train = criterion(outputs_train, mask_train)
 
@@ -242,7 +242,6 @@ if __name__ == '__main__':
                 affine_list_train = torch.cat((affine_list_train, affine_train), dim=0)
             
         scheduler_warmup.step()
-        torch.cuda.empty_cache()
 
         if count_iter % args.display_iter == 0:
             print('=' * print_num)
@@ -256,7 +255,6 @@ if __name__ == '__main__':
                     for i, a in enumerate(name_list_train)]
                 name_list_train = [name + ".{}".format(ext) for name in name_list_train]
                 save_preds_3d(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, affine_list_train)
-            torch.cuda.empty_cache()
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss, count_iter)
@@ -289,7 +287,6 @@ if __name__ == '__main__':
 
                     optimizer.zero_grad()
                     outputs_val = model(inputs_val)
-                    torch.cuda.empty_cache()
 
                     loss_val = criterion(outputs_val, mask_val)
                     val_loss += loss_val.item()
@@ -308,8 +305,6 @@ if __name__ == '__main__':
                     # TODO save val metrics for single images
                     if args.debug:
                         pass
-
-                torch.cuda.empty_cache()
 
                 # TODO save val metrics for single images
                 if args.debug:
@@ -330,10 +325,23 @@ if __name__ == '__main__':
                     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
                     save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val)
 
+                # saving metrics to tensorboard writer
+                writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
+                writer.add_scalar('val/DC', val_eval_list[2], count_iter)
+                writer.add_scalar('val/JI', val_eval_list[1], count_iter)
+                writer.add_scalar('val/thresh', val_eval_list[0], count_iter)
+
+                # saving metrics to list
+                val_metrics.append({
+                    'epoch': count_iter,
+                    'segm/loss': val_epoch_loss,
+                    'segm/dice': val_eval_list[2],
+                    'segm/jaccard': val_eval_list[1],
+                    'thresh': val_eval_list[0],
+                })
+
                 print('-' * print_num)
                 print('| Epoch Time: {:.4f}s'.format((time.time() - begin_time) / args.display_iter).ljust(print_num_minus, ' '), '|')
-
-        torch.cuda.empty_cache()
 
     # save val last preds
     ext = name_list_val[0].rsplit(".", 1)[1]

@@ -92,7 +92,7 @@ if __name__ == '__main__':
     threshold = state_dict['threshold'] if args.threshold is None else args.threshold
     model = model.cuda()
 
-    # Test
+    # test loop
     since = time.time()
 
     with torch.no_grad():

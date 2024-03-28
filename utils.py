@@ -83,6 +83,29 @@ def save_preds_3d(score_list_val, threshold, name_list_val, path_seg_results, af
         output_image.save(os.path.join(path_seg_results, name_list_val[i]))
 
 
+# TODO check if can be compressed in just one function together with previous one
+def save_test_3d(num_classes, score_test, name_test, threshold, path_seg_results, affine):
+
+    if num_classes == 2:
+        score_list_test = torch.softmax(score_test, dim=0)
+        pred_results = score_list_test[1, ...].cpu()
+        pred_results[pred_results > threshold] = 1
+        pred_results[pred_results <= threshold] = 0
+
+        pred_results = pred_results.type(torch.uint8)
+
+        output_image = tio.ScalarImage(tensor=pred_results.unsqueeze(0), affine=affine)
+        output_image.save(os.path.join(path_seg_results, name_test))
+
+    else:
+        pred_results = torch.max(score_test, 0)[1]
+        pred_results = pred_results.cpu()
+        pred_results = pred_results.type(torch.uint8)
+
+        output_image = tio.ScalarImage(tensor=pred_results.unsqueeze(0), affine=affine)
+        output_image.save(os.path.join(path_seg_results, name_test))
+
+
 def compute_epoch_loss(loss, num_batches, print_num, print_num_minus, train=True, print_on_screen=True, unsup_pretrain=False):
     epoch_loss = loss / num_batches['pretrain_unsup'] if unsup_pretrain else loss / num_batches['train_sup']
 

@@ -181,7 +181,6 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
             outputs_train = model(inputs_train)
-            torch.cuda.empty_cache()
 
             if args.deep_supervision:
                 loss_train = 0
@@ -210,7 +209,6 @@ if __name__ == '__main__':
                 name_list_train = np.append(name_list_train, name_train, axis=0)
 
         scheduler_warmup.step()
-        torch.cuda.empty_cache()
 
         if count_iter % args.display_iter == 0:
             print('=' * print_num)
@@ -222,7 +220,6 @@ if __name__ == '__main__':
                 train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus)
             if args.debug:
                 save_preds(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, cfg['PALETTE'])
-            torch.cuda.empty_cache()
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss, count_iter)
@@ -254,7 +251,6 @@ if __name__ == '__main__':
 
                     optimizer.zero_grad()
                     outputs_val = model(inputs_val)
-                    torch.cuda.empty_cache()
 
                     if args.deep_supervision:
                         loss_val = 0
@@ -278,8 +274,6 @@ if __name__ == '__main__':
                     # TODO save val metrics for single images
                     if args.debug:
                         pass
-
-                torch.cuda.empty_cache()
 
                 # TODO save val metrics for single images
                 if args.debug:
@@ -317,12 +311,8 @@ if __name__ == '__main__':
                     'thresh': val_eval_list[0],
                 })
                 
-                torch.cuda.empty_cache()
-
                 print('-' * print_num)
                 print('| Epoch Time: {:.4f}s'.format((time.time() - begin_time) / args.display_iter).ljust(print_num_minus, ' '), '|')
-
-        torch.cuda.empty_cache()
 
     # save val last preds
     save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), cfg['PALETTE'])

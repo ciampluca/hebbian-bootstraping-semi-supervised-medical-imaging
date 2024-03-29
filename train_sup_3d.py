@@ -158,7 +158,7 @@ if __name__ == '__main__':
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], img_shape=args.patch_size)
 
     # eventually load hebbian weights
-    hebb_params, exclude = None, None
+    hebb_params, exclude, exclude_layer_names = None, None, None
     if args.load_hebbian_weights:
         print("Loading Hebbian pre-trained weights")
         state_dict = torch.load(args.load_hebbian_weights, map_location='cpu')
@@ -168,9 +168,9 @@ if __name__ == '__main__':
         model = makehebbian(model, exclude=exclude, hebb_params=hebb_params)
         model.load_state_dict(state_dict['model'])
 
+        exclude_layer_names = exclude
         if exclude is None: exclude = []
         exclude = [(n, m) for n, m in model.named_modules() if any([n == e for e in exclude])]
-        print("Layers excluded from conversion to Hebbian: {}".format([n for n, m in exclude]))
         exclude = [m for _, p in exclude for m in [*p.modules()]]
 
         if args.network == 'unet3d':
@@ -316,7 +316,7 @@ if __name__ == '__main__':
                 # check if best model (in terms of JI) and eventually save it
                 if best_val_eval_list[1] < val_eval_list[1]:
                     best_val_eval_list = val_eval_list
-                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=exclude)
+                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=exclude_layer_names)
                     # save val best preds
                     ext = name_list_val[0].rsplit(".", 1)[1]
                     name_list_val = [name.rsplit(".", 1)[0] for name in name_list_val]
@@ -352,7 +352,7 @@ if __name__ == '__main__':
     save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val)
 
     # save last model
-    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False, hebb_params=hebb_params, layers_excluded=exclude)
+    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False, hebb_params=hebb_params, layers_excluded=exclude_layer_names)
 
     # save train and val metrics in csv file
     train_metrics = pd.DataFrame(train_metrics)

@@ -35,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--thr_interval', default=0.02,  type=float)
     parser.add_argument('-b', '--batch_size', default=4, type=int)
     parser.add_argument('-n', '--network', default='unet', type=str)
+
     parser.add_argument('--hebbian_pretrain', default=False)
 
     args = parser.parse_args()

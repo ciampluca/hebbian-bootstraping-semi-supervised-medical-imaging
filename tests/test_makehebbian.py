@@ -40,14 +40,15 @@ def test_makehebbian():
 
 def test_makehebbian3d():
 	from models.getnetwork import get_network
-	net = get_network('unet3d', 3, 2)
+	net = get_network('unet3d', 1, 2)
 	
-	makehebbian(net, exclude=['conv'], hebb_params={})
+	hebb_params = {'mode': 'swta_t', 'k': 1.0, 'w_nrm': True, 'alpha': 1.0}
+	makehebbian(net, exclude=['conv'], hebb_params=hebb_params)
 	
 	print(net)
 	
 	net.train()
-	inputs = torch.randn(4, 3, 16, 128, 128)
+	inputs = torch.randn(2, 1, 96, 96, 80)
 	outputs = net(inputs)
 	print(outputs.shape)
 

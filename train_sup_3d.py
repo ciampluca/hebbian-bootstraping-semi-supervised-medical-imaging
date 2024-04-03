@@ -113,7 +113,7 @@ if __name__ == '__main__':
     # data loading
     data_transform = data_transform_3d(cfg['NORMALIZE'])
 
-    dataset_train_sup = dataset_it(
+    dataset_train = dataset_it(
         data_dir=args.path_dataset + '/train',
         input1=args.input1,
         transform_1=data_transform['train'],
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     )
 
     dataloaders = dict()
-    dataloaders['train'] = DataLoader(dataset_train_sup.queue_train_set_1, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=0)
+    dataloaders['train'] = DataLoader(dataset_train.queue_train_set_1, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=0)
     dataloaders['val'] = DataLoader(dataset_val.queue_train_set_1, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=0)
 
     num_batches = {'train_sup': len(dataloaders['train']), 'val': len(dataloaders['val'])}

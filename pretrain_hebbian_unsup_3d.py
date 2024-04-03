@@ -11,6 +11,7 @@ from torch.optim import lr_scheduler
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import torchio as tio
 
 from config.dataset_config.dataset_cfg import dataset_cfg
 from config.warmup_config.warmup import GradualWarmupScheduler
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--device', default=0, type=int)
     parser.add_argument('--path_root_exp', default='./runs')
     parser.add_argument('--path_dataset', default='data/GlaS')
-    parser.add_argument('--dataset_name', default='GlaS', help='GlaS')
+    parser.add_argument('--dataset_name', default='Atrial', help='Atrial')
     parser.add_argument('--input1', default='image')
     parser.add_argument('-b', '--batch_size', default=2, type=int)
     parser.add_argument('-e', '--num_epochs', default=200, type=int)
@@ -42,6 +43,7 @@ if __name__ == '__main__':
     parser.add_argument('--optimizer', default="adam", type=str, help="adam, sgd")
     parser.add_argument('-l', '--lr', default=0.5, type=float)
     parser.add_argument('-g', '--gamma', default=0.5, type=float)
+    parser.add_argument('--patch_size', default=(96, 96, 80))
     parser.add_argument('--loss', default='dice', type=str)
     parser.add_argument('-w', '--warm_up_duration', default=20)
     parser.add_argument('--momentum', default=0.9, type=float)
@@ -57,7 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--network', default='unet3d', type=str)
     parser.add_argument('--debug', default=True)
     
-    parser.add_argument('--exclude', nargs='*', default=['Conv_1x1'], type=str, 
+    parser.add_argument('--exclude', nargs='*', default=['conv'], type=str, 
                         help="Full name of the layers to exclude from conversion to Hebbian. These names depend on how they were called in the specific network that you wish to use.")
     parser.add_argument('--hebb_mode', default='swta_t', type=str)
     parser.add_argument('--hebb_inv_temp', default=50., type=float)
@@ -116,7 +118,6 @@ if __name__ == '__main__':
         shuffle_subjects=True,
         shuffle_patches=True,
         sup=True,
-        regime=args.regime,
         seed=args.seed,
     )
     dataset_val = dataset_it(
@@ -133,8 +134,8 @@ if __name__ == '__main__':
     )
 
     dataloaders = dict()
-    dataloaders['train'] = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=0)
-    dataloaders['val'] = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=0)
+    dataloaders['train'] = DataLoader(dataset_train.queue_train_set_1, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=0)
+    dataloaders['val'] = DataLoader(dataset_val.queue_train_set_1, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=0)
 
     num_batches = {'pretrain_unsup': len(dataloaders['train']), 'val': len(dataloaders['val'])}
 

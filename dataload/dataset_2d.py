@@ -40,8 +40,11 @@ class dataset_itn(Dataset):
 
             shuffled_img_paths_1 = img_paths_1.copy()
             random.Random(seed).shuffle(shuffled_img_paths_1)
-            regime_img_paths_1 = shuffled_img_paths_1[:num_images]
-            indices = [i for i in range(len(img_paths_1)) if img_paths_1[i] in regime_img_paths_1]
+            if sup:
+                regime_img_paths_1 = shuffled_img_paths_1[:num_images]
+                indices = [i for i in range(len(img_paths_1)) if img_paths_1[i] in regime_img_paths_1]
+            else:
+                regime_img_paths_1 = shuffled_img_paths_1[num_images:]
             img_paths_1 = sorted(regime_img_paths_1)
 
             if sup:

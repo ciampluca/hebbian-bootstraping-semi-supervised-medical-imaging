@@ -31,12 +31,8 @@ REGIMES=(
     20
 )
 
-DATASETS_2D=(
+DATASETS=(
     GlaS
-)
-
-DATASETS_3D=(
-    Atrial
 )
 
 HEBB_MODES=(
@@ -50,7 +46,7 @@ EXP_ROOT=./runs
 
 # Train & Evaluate
 for K in ${K_VALUES[@]}; do
-    for DATASET in ${DATASETS_2D[@]}; do
+    for DATASET in ${DATASETS[@]}; do
         for REGIME in ${REGIMES[@]}; do
             for HEBB_MODE in ${HEBB_MODES[@]}; do
                 for REP in $(seq $(( $START_REP )) $(( $REPS - 1 ))); do

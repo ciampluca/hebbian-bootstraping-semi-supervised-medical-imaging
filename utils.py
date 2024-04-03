@@ -5,10 +5,12 @@ import random
 import torch
 
 from PIL import Image
-import albumentations as A
+import skimage
+from skimage.morphology import remove_small_holes
 from medpy.metric.binary import hd95, assd
 from sklearn.metrics import confusion_matrix
 import torchio as tio
+import SimpleITK as sitk
 
 
 
@@ -116,6 +118,21 @@ def compute_epoch_loss(loss, num_batches, print_num, print_num_minus, train=True
         print('-' * print_num)
 
     return epoch_loss
+
+
+def compute_epoch_loss_EM(train_loss_sup, train_loss_cps, train_loss, num_batches, print_num, print_num_minus, print_on_screen=True):
+    train_epoch_loss_sup = train_loss_sup / num_batches['train_sup']
+    train_epoch_loss_cps = train_loss_cps / num_batches['train_sup']
+    train_epoch_loss = train_loss / num_batches['train_sup']
+
+    if print_on_screen:
+        print('-' * print_num)
+        print('| Train  Sup  Loss: {:.4f}'.format(train_epoch_loss_sup).ljust(print_num_minus, ' '), '|')
+        print('| Train Unsup Loss: {:.4f}'.format(train_epoch_loss_cps).ljust(print_num_minus, ' '), '|')
+        print('| Train Total Loss: {:.4f}'.format(train_epoch_loss).ljust(print_num_minus, ' '), '|')
+        print('-' * print_num)
+
+    return train_epoch_loss_sup, train_epoch_loss_cps, train_epoch_loss
 
 
 def print_best_val_metrics(num_classes, best_val_list, print_num):
@@ -281,40 +298,84 @@ def eval_pixel(mask_list, seg_result_list, num_classes):
     return (jaccard[1], dice[1]) if num_classes == 2 else None
 
 
-# def test_2d(pred_paths, mask_paths, num_classes=2, resize_shape=(128, 128)):
-#     pred_list = []
-#     mask_list = []
+def postprocess_3d_pred(dataset_name, pred_path, save_path, fill_hole_thr=500):
+    
+    def save_max_objects(image):
+        labeled_image = skimage.measure.label(image)
+        labeled_list = skimage.measure.regionprops(labeled_image)
+        box = []
+        
+        for i in range(len(labeled_list)):
+            box.append(labeled_list[i].area)
+            label_num = box.index(max(box)) + 1
 
-#     pred_flatten_list = []
-#     mask_flatten_list = []
+        labeled_image[labeled_image != label_num] = 0
+        labeled_image[labeled_image == label_num] = 1
 
-#     for num, i in enumerate(os.listdir(pred_paths)):
-#         pred_path = os.path.join(pred_paths, i)
-#         mask_path = os.path.join(mask_paths, i)
+        return labeled_image
+    
+    if dataset_name == 'Atrial':
+        for i in os.listdir(pred_path):
+            pred = sitk.ReadImage(os.path.join(pred_path, i))
+            pred = sitk.GetArrayFromImage(pred)
 
-#         pred = Image.open(pred_path)
-#         pred = np.array(pred).astype(np.int8)
+            pred = pred.astype(bool)
+            pred = remove_small_holes(pred, fill_hole_thr)
+            pred = pred.astype(np.uint8)
 
-#         mask = Image.open(mask_path)
-#         mask = np.array(mask)
+            pred = save_max_objects(pred)
+            pred = pred.astype(np.uint8)
 
-#         resize = A.Resize(resize_shape[1], resize_shape[0], p=1)(image=pred, mask=mask)
-#         mask = resize['mask']
-#         pred = resize['image']
+            pred = sitk.GetImageFromArray(pred)
+            sitk.WriteImage(pred, os.path.join(save_path, i))
+    else:
+        print("Dataset not implemented")
 
-#         pred_list.append(pred)
-#         mask_list.append(mask)
 
-#         if num == 0:
-#             pred_flatten_list = pred.flatten()
-#             mask_flatten_list = mask.flatten()
-#         else:
-#             pred_flatten_list = np.append(pred_flatten_list, pred.flatten())
-#             mask_flatten_list = np.append(mask_flatten_list, mask.flatten())
+def offline_eval(pred_path, mask_path, if_3D=True, num_classes=2):
+    pred_list = []
+    mask_list = []
 
-#         num += 1
+    pred_flatten_list = []
+    mask_flatten_list = []
 
-#     eval_pixel_list = eval_pixel(mask_flatten_list, pred_flatten_list, num_classes)
-#     eval_distance_list = eval_distance(mask_list, pred_list, num_classes)
+    num = 0
 
-#     return eval_pixel_list, eval_distance_list
+    for i in os.listdir(pred_path):
+
+        if if_3D:
+            pred = sitk.ReadImage(os.path.join(pred_path, i))
+            pred = sitk.GetArrayFromImage(pred)
+
+            mask = sitk.ReadImage(os.path.join(mask_path, i))
+            mask = sitk.GetArrayFromImage(mask)
+            mask[mask==255] = 1
+        else:
+            # TODO
+            pred = Image.open(pred_path)
+            # pred = pred.resize((args.resize_shape[1], args.resize_shape[0]))
+            pred = np.array(pred)
+
+            mask = Image.open(mask_path)
+            # mask = mask.resize((args.resize_shape[1], args.resize_shape[0]))
+            mask = np.array(mask)
+            resize = A.Resize(args.resize_shape[1], args.resize_shape[0], p=1)(image=pred, mask=mask)
+            mask = resize['mask']
+            pred = resize['image']
+
+        pred_list.append(pred)
+        mask_list.append(mask)
+
+        if num == 0:
+            pred_flatten_list = pred.flatten()
+            mask_flatten_list = mask.flatten()
+        else:
+            pred_flatten_list = np.append(pred_flatten_list, pred.flatten())
+            mask_flatten_list = np.append(mask_flatten_list, mask.flatten())
+
+        num += 1
+
+    jaccard, dice = eval_pixel(mask_flatten_list, pred_flatten_list, num_classes)
+    #eval_distance(mask_list, pred_list, num_classes)
+
+    return {'jaccard': jaccard, 'dice': dice}

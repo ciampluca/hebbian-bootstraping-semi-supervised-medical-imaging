@@ -129,14 +129,14 @@ if __name__ == '__main__':
             save_preds(score_list_test, threshold, name_list_test, path_seg_results, cfg['PALETTE'])
 
     # save test metrics in csv file
-    train_metrics = pd.DataFrame([{
+    test_metrics = pd.DataFrame([{
         'segm/dice': pixel_metrics[2],
         'segm/jaccard': pixel_metrics[1],
         #'segm/asd': distance_metrics[1],
         #'segm/95hd': distance_metrics[0], 
         'thresh': pixel_metrics[0],
     }])
-    train_metrics.to_csv(os.path.join(args.path_exp, 'test.csv'), index=False)
+    test_metrics.to_csv(os.path.join(args.path_exp, 'test.csv'), index=False)
 
     time_elapsed = time.time() - since
     m, s = divmod(time_elapsed, 60)

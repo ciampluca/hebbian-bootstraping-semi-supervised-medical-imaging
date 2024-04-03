@@ -1,6 +1,7 @@
 import argparse
 import time
 import os
+import pandas as pd
 
 import torch
 from torch.autograd import Variable
@@ -12,7 +13,7 @@ from config.dataset_config.dataset_cfg import dataset_cfg
 from config.augmentation.online_aug import data_transform_3d
 from models.getnetwork import get_network
 from dataload.dataset_3d import dataset_it
-from utils import save_test_3d
+from utils import save_test_3d, postprocess_3d_pred, offline_eval
 
 from hebb.makehebbian import makehebbian
 
@@ -37,6 +38,7 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', default=1, type=int)
     parser.add_argument('-n', '--network', default='unet3d')
     parser.add_argument('--hebbian_pretrain', default=False)
+    parser.add_argument('--fill_hole_thr', default=500, help='300-500')
 
     args = parser.parse_args()
 
@@ -84,6 +86,9 @@ if __name__ == '__main__':
     model = model.cuda()
 
     # test loop
+    print('-' * print_num)
+    print('| Starting Testing'.ljust(print_num_minus, ' '), '|')
+    print('=' * print_num)
     since = time.time()
 
     for i, subject in enumerate(dataset_val.dataset_1):
@@ -111,9 +116,6 @@ if __name__ == '__main__':
                 aggregator.add_batch(outputs_test, location_test)
 
         outputs_tensor = aggregator.get_output_tensor()
-        # TODO
-        # postprocessing here? note that maybe is dataset specific
-        # eval here?
         save_test_3d(cfg['NUM_CLASSES'], outputs_tensor, subject['ID'], threshold, path_seg_results, subject['image']['affine'])
 
     time_elapsed = time.time() - since
@@ -122,3 +124,46 @@ if __name__ == '__main__':
     print('-' * print_num)
     print('| Testing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
     print('=' * print_num)
+
+    # pred post-processing
+    print('-' * print_num)
+    print('| Starting Preds Post-Processing'.ljust(print_num_minus, ' '), '|')
+    print('=' * print_num)
+    since = time.time()
+
+    path_seg_postprocessed_results = os.path.join(os.path.join(args.path_exp, "test_seg_preds_postprocessed"))
+    if not os.path.exists(path_seg_postprocessed_results):
+        os.makedirs(path_seg_postprocessed_results)
+    postprocess_3d_pred(args.dataset_name, path_seg_results, path_seg_postprocessed_results, args.fill_hole_thr)
+
+    time_elapsed = time.time() - since
+    m, s = divmod(time_elapsed, 60)
+    h, m = divmod(m, 60)
+    print('-' * print_num)
+    print('| Preds Post-Processing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
+    print('=' * print_num)
+
+    # evaluation
+    print('-' * print_num)
+    print('| Starting Eval'.ljust(print_num_minus, ' '), '|')
+    print('=' * print_num)
+    since = time.time()
+
+    test_results = offline_eval(path_seg_postprocessed_results, os.path.join(args.path_dataset, "val", "mask"))
+
+    time_elapsed = time.time() - since
+    m, s = divmod(time_elapsed, 60)
+    h, m = divmod(m, 60)
+    print('-' * print_num)
+    print('| Eval Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
+    print('=' * print_num)
+
+    # save test metrics in csv file
+    test_metrics = pd.DataFrame([{
+        'segm/dice': test_results['dice'],
+        'segm/jaccard': test_results['jaccard'],
+        #'segm/asd': distance_metrics[1],
+        #'segm/95hd': distance_metrics[0], 
+        #'thresh': pixel_metrics[0],
+    }])
+    test_metrics.to_csv(os.path.join(args.path_exp, 'test.csv'), index=False)

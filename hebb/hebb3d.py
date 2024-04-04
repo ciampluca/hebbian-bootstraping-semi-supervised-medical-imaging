@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.nn.modules.utils import _triple
 
 
+PARALLEL_CHANNELS = 32 # How many channels to process in parallel to compute Hebbian updates. Higher values require more GPU memory.
+
 def normalize(x, dim=None):
 	nrm = (x**2).sum(dim=dim, keepdim=True)**0.5
 	nrm[nrm == 0] = 1.
@@ -95,7 +97,7 @@ class HebbianConv3d(nn.Module):
 		K, L = x_unf.shape[3], x_unf.shape[4]
 		x_unf = x_unf.permute(0, 4, 1, 3, 2).reshape(B, L, C, K, D)
 		x_unf = x_unf.unfold(4, kernel_size[0], stride[0])
-		x_unf = x_unf.permute(0, 2, 4, 3, 5, 1).reshape(B, -1, x_unf.shape[-1]*L)
+		x_unf = x_unf.permute(0, 2, 5, 3, 4, 1).reshape(B, -1, x_unf.shape[-2]*L)
 		return x_unf
 	
 	def compute_update(self, x, y):
@@ -110,38 +112,62 @@ class HebbianConv3d(nn.Module):
 		if self.mode == self.MODE_SWTA:
 			with torch.no_grad():
 				# Logic for swta-type learning
-				x_unf = self.unfold3d(x, self.kernel_size, self.stride)
-				x_unf = x_unf.permute(0, 2, 1).reshape(-1, x_unf.size(1))
 				if self.patchwise:
 					r = (y * self.k).softmax(dim=1).permute(1, 0, 2, 3, 4).reshape(y.shape[1], -1)
-					dec = r.sum(1, keepdim=True) * self.weight.reshape(self.weight.shape[0], -1)
-					self.delta_w += (r.matmul(x_unf) - dec).reshape_as(self.weight)
+					for i in range((self.weight.shape[1] // PARALLEL_CHANNELS) + (1 if self.weight.shape[1] % PARALLEL_CHANNELS != 0 else 0)):
+						start = i * PARALLEL_CHANNELS
+						end = min((i + 1) * PARALLEL_CHANNELS, self.weight.shape[1])
+						x_unf = self.unfold3d(x[:, start:end], self.kernel_size, self.stride)
+						x_unf = x_unf.permute(0, 2, 1).reshape(-1, x_unf.size(1))
+						w_i = self.weight[:, start:end]
+						r_i = r[:]
+						dec = r_i.sum(1, keepdim=True) * w_i.reshape(w_i.shape[0], -1)
+						self.delta_w[:, start:end] += (r_i.matmul(x_unf) - dec).reshape_as(w_i)
 				else:
 					r = (y * self.k).softmax(dim=1).permute(2, 3, 4, 1, 0)
-					krn = torch.eye(len(self.weight[0]), device=x.device, dtype=x.dtype).view(len(self.weight[0]), self.weight.shape[1], *self.kernel_size)
-					dec = torch.conv_transpose3d((r.sum(dim=-1, keepdim=True) * self.weight.reshape(1, 1, 1, self.weight.shape[0], -1)).permute(3, 4, 0, 1, 2), krn, stride=self.stride)
-					self.delta_w += (r.permute(3, 4, 0, 1, 2).reshape(r.shape[3], -1).matmul(x_unf) - self.unfold3d(dec, self.kernel_size, self.stride).sum(dim=-1)).reshape_as(self.weight)
-			
+					for i in range((self.weight.shape[1] // PARALLEL_CHANNELS) + (1 if self.weight.shape[1] % PARALLEL_CHANNELS != 0 else 0)):
+						start = i * PARALLEL_CHANNELS
+						end = min((i + 1) * PARALLEL_CHANNELS, self.weight.shape[1])
+						x_unf = self.unfold3d(x[:, start:end], self.kernel_size, self.stride)
+						x_unf = x_unf.permute(0, 2, 1).reshape(-1, x_unf.size(1))
+						w_i = self.weight[:, start:end]
+						r_i = r[:]
+						krn = torch.eye(len(w_i[0].reshape(-1)), device=x.device, dtype=x.dtype).reshape(len(w_i[0].reshape(-1)), w_i.shape[1], *self.kernel_size)
+						dec = torch.conv_transpose3d((r_i.sum(dim=-1, keepdim=True) * w_i.reshape(1, 1, 1, w_i.shape[0], -1)).permute(3, 4, 0, 1, 2), krn, stride=self.stride)
+						self.delta_w[:, start:end] += (r_i.permute(3, 4, 0, 1, 2).reshape(r_i.shape[3], -1).matmul(x_unf) - self.unfold3d(dec, self.kernel_size, self.stride).sum(dim=-1)).reshape_as(w_i)
+				
 		if self.mode == self.MODE_HPCA:
 			with torch.no_grad():
 				# Logic for hpca-type learning
-				x_unf = self.unfold3d(x, self.kernel_size, self.stride)
-				x_unf = x_unf.permute(0, 2, 1).reshape(-1, x_unf.size(1))
 				if self.patchwise:
 					r = y.permute(1, 0, 2, 3, 4).reshape(y.shape[1], -1)
-					l = (torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.weight.shape[0], 1) <= torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
-					dec = (r.matmul(r.transpose(-2, -1)) * l).matmul(self.weight.reshape(self.weight.shape[0], -1))
-					self.delta_w += (r.matmul(x_unf) - dec).reshape_as(self.weight)
+					for i in range((self.weight.shape[1] // PARALLEL_CHANNELS) + (1 if self.weight.shape[1] % PARALLEL_CHANNELS != 0 else 0)):
+						start = i * PARALLEL_CHANNELS
+						end = min((i + 1) * PARALLEL_CHANNELS, self.weight.shape[1])
+						x_unf = self.unfold3d(x[:, start:end], self.kernel_size, self.stride)
+						x_unf = x_unf.permute(0, 2, 1).reshape(-1, x_unf.shape[1])
+						w_i = self.weight[:, start:end]
+						r_i = r[:]
+						l = (torch.arange(w_i.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(w_i.shape[0], 1) <= torch.arange(w_i.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
+						dec = (r_i.matmul(r_i.transpose(-2, -1)) * l).matmul(w_i.reshape(w_i.shape[0], -1))
+						self.delta_w[:, start:end] += (r_i.matmul(x_unf) - dec).reshape_as(w_i)
 				else:
 					r = y.permute(2, 3, 4, 1, 0)
-					l = (torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.weight.shape[0], 1) <= torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
-					dec = torch.conv_transpose3d((r.matmul(r.transpose(-2, -1)) * l.unsqueeze(0).unsqueeze(1).unsqueeze(2)).permute(4, 3, 0, 1, 2), self.weight, stride=self.stride)
-					self.delta_w += (r.permute(3, 4, 0, 1, 2).reshape(r.shape[3], -1).matmul(x_unf) - self.unfold3d(dec, self.kernel_size, self.stride).sum(dim=-1)).reshape_as(self.weight)
+					for i in range((self.weight.shape[1] // PARALLEL_CHANNELS) + (1 if self.weight.shape[1] % PARALLEL_CHANNELS != 0 else 0)):
+						start = i * PARALLEL_CHANNELS
+						end = min((i + 1) * PARALLEL_CHANNELS, self.weight.shape[1])
+						x_unf = self.unfold3d(x[:, start:end], self.kernel_size, self.stride)
+						x_unf = x_unf.permute(0, 2, 1).reshape(-1, x_unf.shape[1])
+						w_i = self.weight[:, start:end]
+						r_i = r[:]
+						l = (torch.arange(w_i.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(w_i.shape[0], 1) <= torch.arange(w_i.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
+						dec = torch.conv_transpose3d((r_i.matmul(r_i.transpose(-2, -1)) * l.unsqueeze(0).unsqueeze(1).unsqueeze(2)).permute(4, 3, 0, 1, 2), w_i, stride=self.stride)
+						self.delta_w[:, start:end] += (r_i.permute(3, 4, 0, 1, 2).reshape(r_i.shape[3], -1).matmul(x_unf) - self.unfold3d(dec, self.kernel_size, self.stride).sum(dim=-1)).reshape_as(w_i)
 			
 		if self.mode == self.MODE_CONTRASTIVE:
 			y = self.compute_activation(x.clone().detach())
 			y = normalize(y, dim=1)
-			y_unf = self.unfold3d(y, _triple(3), padding=_triple(1))
+			y_unf = self.unfold3d(y, _triple(3), padding=1)
 			y_unf = y_unf.permute(0, 2, 1).reshape(y_unf.size(0), y_unf.size(2), y.size(1), 27)
 			
 			# Positive contribution
@@ -151,7 +177,7 @@ class HebbianConv3d(nn.Module):
 			if self.uniformity:
 				with torch.no_grad():
 					x = normalize(x, dim=1)
-					x_unf = self.unfold3d(x, _triple(3), padding=_triple(1))
+					x_unf = self.unfold3d(x, _triple(3), padding=1)
 					x_unf = x_unf.permute(0, 2, 1).reshape(x_unf.size(0), x_unf.size(2), x.size(1), 27)
 					uniformity_map = (x_unf.sum(-1).reshape(-1, x.size(1)) * x.permute(0, 2, 3, 4, 1).reshape(-1, x.size(1))).sum(dim=-1, keepdim=True)
 					uniformity_map = self.apply_weights(uniformity_map.reshape(x.size(0), 1, *x.shape[2:]), torch.ones([1, 1, *self.kernel_size], device=x.device, dtype=x.dtype)).reshape(-1, 1)
@@ -199,7 +225,7 @@ class HebbianConvTranspose3d(HebbianConv3d):
 	MODE_HPCA_T = 'hpca_t'
 
 	def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True, w_nrm=True, act=nn.Identity(),
-	             mode=MODE_SWTA_T, k=1, patchwise=False, contrast=1., uniformity=False, alpha=0.):
+	             mode=MODE_SWTA_T, k=1, patchwise=True, contrast=1., uniformity=False, alpha=0.):
 		"""
 		
 		:param out_channels: output channels of the convolutional kernel
@@ -251,21 +277,31 @@ class HebbianConvTranspose3d(HebbianConv3d):
 			with torch.no_grad():
 				# Logic for swta-type learning in transpose convolutional layers
 				r = (y * self.k).softmax(dim=1)
-				r = self.unfold3d(r, kernel_size=self.kernel_size, stride=self.stride)
-				r = r.permute(0, 2, 1).reshape(-1, self.out_channels, self.kernel_size[0]*self.kernel_size[1]*self.kernel_size[2]).permute(2, 1, 0)
-				dec = r.sum(2, keepdim=True) * self.weight.permute(2, 3, 4, 1, 0).reshape(-1, self.out_channels, self.in_channels)
-				if self.patchwise: dec = dec.sum(dim=0, keepdim=True)
-				self.delta_w += (r.matmul(x.permute(0, 2, 3, 4, 1).reshape(1, -1, x.size(1))) - dec).permute(2, 1, 0).reshape_as(self.weight)
-		
+				for i in range((self.weight.shape[1] // PARALLEL_CHANNELS) + (1 if self.weight.shape[1] % PARALLEL_CHANNELS != 0 else 0)):
+					start = i * PARALLEL_CHANNELS
+					end = min((i + 1) * PARALLEL_CHANNELS, self.weight.shape[1])
+					w_i = self.weight[:, start:end]
+					r_i = r[:, start:end]
+					r_i = self.unfold3d(r_i, kernel_size=self.kernel_size, stride=self.stride)
+					r_i = r_i.permute(0, 2, 1).reshape(-1, w_i.shape[1], self.kernel_size[0]*self.kernel_size[1]*self.kernel_size[2]).permute(2, 1, 0)
+					dec = r_i.sum(2, keepdim=True) * w_i.permute(2, 3, 4, 1, 0).reshape(-1, w_i.shape[1], w_i.shape[0])
+					if self.patchwise: dec = dec.sum(dim=0, keepdim=True)
+					self.delta_w[:, start:end] += (r_i.matmul(x.permute(0, 2, 3, 4, 1).reshape(1, -1, x.size(1))) - dec).permute(2, 1, 0).reshape_as(w_i)
+			
 		if self.mode == self.MODE_HPCA_T:
 			with torch.no_grad():
 				# Logic for hpca-type learning in transpose convolutional layers
 				r = y
-				r = self.unfold3d(r, kernel_size=self.kernel_size, stride=self.stride)
-				r = r.permute(0, 2, 1).reshape(-1, self.out_channels, self.kernel_size[0]*self.kernel_size[1]*self.kernel_size[2]).permute(2, 1, 0)
-				l = (torch.arange(self.out_channels, device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.out_channels, 1) <= torch.arange(self.out_channels, device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
-				dec = (r.matmul(r.transpose(-2, -1)) * l.unsqueeze(0)).matmul(self.weight.permute(2, 3, 4, 1, 0).reshape(-1, self.out_channels, self.in_channels))
-				if self.patchwise: dec = dec.sum(dim=0, keepdim=True)
-				self.delta_w += (r.matmul(x.permute(0, 2, 3, 4, 1).reshape(1, -1, x.size(1))) - dec).permute(2, 1, 0).reshape_as(self.weight)
-		
+				for i in range((self.weight.shape[1] // PARALLEL_CHANNELS) + (1 if self.weight.shape[1] % PARALLEL_CHANNELS != 0 else 0)):
+					start = i * PARALLEL_CHANNELS
+					end = min((i + 1) * PARALLEL_CHANNELS, self.weight.shape[1])
+					w_i = self.weight[:, start:end]
+					r_i = r[:, start:end]
+					r_i = self.unfold3d(r_i, kernel_size=self.kernel_size, stride=self.stride)
+					r_i = r_i.permute(0, 2, 1).reshape(-1, w_i.shape[1], self.kernel_size[0]*self.kernel_size[1]*self.kernel_size[2]).permute(2, 1, 0)
+					l = (torch.arange(w_i.shape[1], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(w_i.shape[1], 1) <= torch.arange(w_i.shape[1], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
+					dec = (r_i.matmul(r_i.transpose(-2, -1)) * l.unsqueeze(0)).matmul(w_i.permute(2, 3, 4, 1, 0).reshape(-1, w_i.shape[1], w_i.shape[0]))
+					if self.patchwise: dec = dec.sum(dim=0, keepdim=True)
+					self.delta_w[:, start:end] += (r_i.matmul(x.permute(0, 2, 3, 4, 1).reshape(1, -1, x.size(1))) - dec).permute(2, 1, 0).reshape_as(w_i)
+			
 		

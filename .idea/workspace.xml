@@ -2,13 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a6084e43-8a3d-4f65-bc86-b2baf8115879" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/hebb/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/hebb/hebb.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/hebb/makehebbian.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/pretrain_unsup.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/test_makehebbian.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hebb/hebb.py" beforeDir="false" afterPath="$PROJECT_DIR$/hebb/hebb.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hebb/hebb3d.py" beforeDir="false" afterPath="$PROJECT_DIR$/hebb/hebb3d.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_makehebbian.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_makehebbian.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -26,18 +24,22 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GithubDefaultAccount">
+    <option name="defaultAccountId" value="aa92c181-b628-4e15-ae15-ac50ebd62ece" />
+  </component>
   <component name="ProjectId" id="2ASvhrldQmnvrIuEBF6ewe1Fctz" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/hebb" />
+    <property name="settings.editor.selected.configurable" value="Errors" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="C:\Users\Gabriele\PycharmProjects\hebbian-bootstraping-semi-supervised-medical-imaging" />
       <recent name="C:\Users\Gabriele\PycharmProjects\hebbian-bootstraping-semi-supervised-medical-imaging\hebb" />
+      <recent name="C:\Users\Gabriele\PycharmProjects\hebbian-bootstraping-semi-supervised-medical-imaging\models\networks_2d" />
+      <recent name="C:\Users\Gabriele\PycharmProjects\hebbian-bootstraping-semi-supervised-medical-imaging" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\Gabriele\PycharmProjects\hebbian-bootstraping-semi-supervised-medical-imaging\tests" />
@@ -205,6 +207,49 @@
       <workItem from="1690260775935" duration="683000" />
       <workItem from="1690263220286" duration="1342000" />
     </task>
+    <task id="LOCAL-00001" summary="Added Hebbian module. Created method to convert networks to Hebbian. Created script for unsupervised pretraining.">
+      <created>1710522959324</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1710522959324</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Added Hebbian 3d modules">
+      <created>1710950730143</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1710950730143</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Added Hebbian 3d modules">
+      <created>1711032191830</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1711032191830</updated>
+    </task>
+    <task id="LOCAL-00004" summary="restored mahehebbian 3d">
+      <created>1711040107566</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1711040107566</updated>
+    </task>
+    <task id="LOCAL-00005" summary="hebbian unet">
+      <created>1711041220354</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1711041220354</updated>
+    </task>
+    <task id="LOCAL-00006" summary="extended constructor og hebbian conv modules">
+      <created>1711042452081</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1711042452081</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -222,6 +267,14 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Added Hebbian module. Created method to convert networks to Hebbian. Created script for unsupervised pretraining." />
+    <MESSAGE value="Added Hebbian 3d modules" />
+    <MESSAGE value="restored mahehebbian 3d" />
+    <MESSAGE value="hebbian unet" />
+    <MESSAGE value="extended constructor og hebbian conv modules" />
+    <option name="LAST_COMMIT_MESSAGE" value="extended constructor og hebbian conv modules" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/XNet$wavelet_trans.coverage" NAME="wavelet_trans Coverage Results" MODIFIED="1656748230352" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tools/GlaS" />

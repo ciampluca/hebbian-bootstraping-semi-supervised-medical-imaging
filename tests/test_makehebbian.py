@@ -42,7 +42,7 @@ def test_makehebbian3d():
 	from models.getnetwork import get_network
 	net = get_network('unet3d', 1, 2)
 	
-	hebb_params = {'mode': 'swta_t', 'k': 1.0, 'w_nrm': True, 'alpha': 1.0}
+	hebb_params = {'mode': 'hpca', 'k': 1.0, 'w_nrm': True, 'alpha': 1.0}
 	makehebbian(net, exclude=['conv'], hebb_params=hebb_params)
 	
 	print(net)

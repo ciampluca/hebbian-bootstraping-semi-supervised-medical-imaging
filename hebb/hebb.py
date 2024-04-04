@@ -107,7 +107,7 @@ class HebbianConv2d(nn.Module):
 					self.delta_w += (r.matmul(x_unf) - dec).reshape_as(self.weight)
 				else:
 					r = (y * self.k).softmax(dim=1).permute(2, 3, 1, 0)
-					krn = torch.eye(len(self.weight[0]), device=x.device, dtype=x.dtype).view(len(self.weight[0]), self.weight.shape[1], *self.kernel_size)
+					krn = torch.eye(len(self.weight[0].reshape(-1)), device=x.device, dtype=x.dtype).reshape(len(self.weight[0].reshape(-1)), self.weight.shape[1], *self.kernel_size)
 					dec = torch.conv_transpose2d((r.sum(dim=-1, keepdim=True) * self.weight.reshape(1, 1, self.weight.shape[0], -1)).permute(2, 3, 0, 1), krn, stride=self.stride)
 					self.delta_w += (r.permute(2, 3, 0, 1).reshape(r.shape[2], -1).matmul(x_unf) - F.unfold(dec, kernel_size=self.kernel_size, stride=self.stride).sum(dim=-1)).reshape_as(self.weight)
 			
@@ -188,7 +188,7 @@ class HebbianConvTranspose2d(HebbianConv2d):
 	MODE_HPCA_T = 'hpca_t'
 
 	def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True, w_nrm=True, act=nn.Identity(),
-	             mode=MODE_SWTA_T, k=1, patchwise=False, contrast=1., uniformity=False, alpha=0.):
+	             mode=MODE_SWTA_T, k=1, patchwise=True, contrast=1., uniformity=False, alpha=0.):
 		"""
 		
 		:param out_channels: output channels of the convolutional kernel

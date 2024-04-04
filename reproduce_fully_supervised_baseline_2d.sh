@@ -4,8 +4,8 @@
 
 set -e
 
-REPS=1      # set a 1 for now, how can we have multiple runs in this case?
-START_REP=0
+REPS=5      
+START_REP=1
 GPU=0
 
 BATCH_SIZE=2

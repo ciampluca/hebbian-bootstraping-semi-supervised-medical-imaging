@@ -135,6 +135,32 @@ def compute_epoch_loss_EM(train_loss_sup, train_loss_cps, train_loss, num_batche
     return train_epoch_loss_sup, train_epoch_loss_cps, train_epoch_loss
 
 
+def compute_epoch_loss_MT(train_loss_sup, train_loss_cps, train_loss, num_batches, print_num, print_num_half, print_num_minus, print_on_screen=True):
+    train_loss_sup = train_loss_sup / num_batches['train_sup']
+    train_epoch_loss_cps = train_loss_cps / num_batches['train_sup']
+    train_epoch_loss = train_loss / num_batches['train_sup']
+
+    if print_on_screen:
+        print('-' * print_num)
+        print('| Train  Sup  Loss: {:.4f}'.format(train_loss_sup).ljust(print_num_half, ' '), '| Train Unsup Loss: {:.4f}'.format(train_epoch_loss_cps).ljust(print_num_half, ' '), '|')
+        print('| Train Total Loss: {:.4f}'.format(train_epoch_loss).ljust(print_num_minus, ' '), '|')
+        print('-' * print_num)
+    
+    return train_loss_sup, train_epoch_loss_cps, train_epoch_loss
+
+
+def compute_val_epoch_loss_MT(val_loss_sup_1, val_loss_sup_2, num_batches, print_num, print_num_half, print_on_screen=True):
+    val_epoch_loss_sup1 = val_loss_sup_1 / num_batches['val']
+    val_epoch_loss_sup2 = val_loss_sup_2 / num_batches['val']
+
+    if print_on_screen:
+        print('-' * print_num)
+        print('| Val Sup Loss 1: {:.4f}'.format(val_epoch_loss_sup1).ljust(print_num_half, ' '), '| Val Sup Loss 2: {:.4f}'.format(val_epoch_loss_sup2).ljust(print_num_half, ' '), '|')
+        print('-' * print_num)
+    
+    return val_epoch_loss_sup1, val_epoch_loss_sup2
+
+
 def print_best_val_metrics(num_classes, best_val_list, print_num):
     if num_classes == 2:
         print('| Best Val Thr: {:.4f}'.format(best_val_list[0]).ljust(print_num, ' '), '|')
@@ -171,6 +197,32 @@ def evaluate(num_classes, score_list, mask_list, print_num, print_on_screen=True
         # train_m_jc = eval_list[1]
 
     return eval_list
+
+
+def evaluate_val_MT(num_classes, score_list_val1, score_list_val2, mask_list_val, print_num, print_on_screen=True, thr_ranges=[0, 0.9], thr_interval=0.02):
+ 
+    if num_classes == 2:
+        eval_list1 = eval_single_class(score_list_val1, mask_list_val, thr_ranges=thr_ranges, thr_interval=thr_interval)
+        eval_list2 = eval_single_class(score_list_val2, mask_list_val, thr_ranges=thr_ranges, thr_interval=thr_interval)
+
+        if print_on_screen:
+            print('| Val Thr 1: {:.4f}'.format(eval_list1[0]).ljust(print_num, ' '), '| Val Thr 2: {:.4f}'.format(eval_list2[0]).ljust(print_num, ' '), '|')
+            print('| Val  Jc 1: {:.4f}'.format(eval_list1[1]).ljust(print_num, ' '), '| Val  Jc 2: {:.4f}'.format(eval_list2[1]).ljust(print_num, ' '), '|')
+            print('| Val  Dc 1: {:.4f}'.format(eval_list1[2]).ljust(print_num, ' '), '| Val  Dc 2: {:.4f}'.format(eval_list2[2]).ljust(print_num, ' '), '|')
+    else:
+        # TODO
+        pass
+        # eval_list1 = evaluate_multi(score_list_val1, mask_list_val)
+        # eval_list2 = evaluate_multi(score_list_val2, mask_list_val)
+        # np.set_printoptions(precision=4, suppress=True)
+        # print('| Val  Jc 1: {}  '.format(eval_list1[0]).ljust(print_num, ' '), '| Val  Jc 2: {}'.format(eval_list2[0]).ljust(print_num, ' '), '|')
+        # print('| Val  Dc 1: {}  '.format(eval_list1[2]).ljust(print_num, ' '), '| Val  Dc 2: {}'.format(eval_list2[2]).ljust(print_num, ' '), '|')
+        # print('| Val mJc 1: {:.4f}'.format(eval_list1[1]).ljust(print_num, ' '), '| Val mJc 2: {:.4f}'.format(eval_list2[1]).ljust(print_num, ' '), '|')
+        # print('| Val mDc 1: {:.4f}'.format(eval_list1[3]).ljust(print_num, ' '), '| Val mDc 2: {:.4f}'.format(eval_list2[3]).ljust(print_num, ' '), '|')
+        # val_m_jc1 = eval_list1[1]
+        # val_m_jc2 = eval_list2[1]
+        
+    return eval_list1, eval_list2
 
 
 def eval_single_class(y_scores, y_true, thr_ranges=[0, 0.9], thr_interval=0.02):

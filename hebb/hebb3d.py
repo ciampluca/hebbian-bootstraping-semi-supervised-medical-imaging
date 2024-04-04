@@ -95,7 +95,7 @@ class HebbianConv3d(nn.Module):
 		K, L = x_unf.shape[3], x_unf.shape[4]
 		x_unf = x_unf.permute(0, 4, 1, 3, 2).reshape(B, L, C, K, D)
 		x_unf = x_unf.unfold(4, kernel_size[0], stride[0])
-		x_unf = x_unf.permute(0, 2, 4, 3, 5, 1).reshape(B, -1, x_unf.shape[-1]*L)
+		x_unf = x_unf.permute(0, 2, 5, 3, 4, 1).reshape(B, -1, x_unf.shape[-2]*L)
 		return x_unf
 	
 	def compute_update(self, x, y):
@@ -199,7 +199,7 @@ class HebbianConvTranspose3d(HebbianConv3d):
 	MODE_HPCA_T = 'hpca_t'
 
 	def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True, w_nrm=True, act=nn.Identity(),
-	             mode=MODE_SWTA_T, k=1, patchwise=False, contrast=1., uniformity=False, alpha=0.):
+	             mode=MODE_SWTA_T, k=1, patchwise=True, contrast=1., uniformity=False, alpha=0.):
 		"""
 		
 		:param out_channels: output channels of the convolutional kernel

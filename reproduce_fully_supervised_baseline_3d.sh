@@ -4,7 +4,7 @@
 
 set -e
 
-REPS=1      # set a 1 for now, how can we have multiple runs in this case?
+REPS=5
 START_REP=0
 GPU=0
 

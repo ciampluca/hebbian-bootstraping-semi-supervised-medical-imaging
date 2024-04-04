@@ -269,7 +269,6 @@ if __name__ == '__main__':
             print('=' * print_num)
             print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
             train_epoch_loss_sup, train_epoch_loss_unsup, train_epoch_loss = compute_epoch_loss_EM(train_loss_sup, train_loss_unsup, train_loss, num_batches, print_num, print_num_minus)
-            train_epoch_loss = compute_epoch_loss(train_loss, num_batches, print_num, print_num_minus)
             train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus)
             if args.debug:
                 save_preds(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, cfg['PALETTE'])

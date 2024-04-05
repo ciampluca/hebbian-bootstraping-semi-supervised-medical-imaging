@@ -130,7 +130,7 @@ dmypy.json
 
 # Custom
 .tool-versions
-.idea
+/.idea/
 /.vscode/
 data/
 runs/

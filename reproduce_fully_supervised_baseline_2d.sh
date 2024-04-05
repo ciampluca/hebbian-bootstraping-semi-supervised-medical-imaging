@@ -5,7 +5,7 @@
 set -e
 
 REPS=5      
-START_REP=1
+START_REP=0
 GPU=0
 
 BATCH_SIZE=2

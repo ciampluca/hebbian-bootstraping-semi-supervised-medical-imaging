@@ -18,8 +18,7 @@ from config.augmentation.online_aug import data_transform_2d, data_normalize_2d
 from loss.loss_function import segmentation_loss, softmax_mse_loss
 from dataload.dataset_2d import imagefloder_itn
 from config.warmup_config.warmup import GradualWarmupScheduler
-from config.ramps import ramps
-from utils import save_snapshot, save_preds, init_seeds, evaluate, print_best_val_metrics, update_ema_variables, compute_epoch_loss_MT, compute_val_epoch_loss_MT, evaluate_val_MT
+from utils import save_snapshot, save_preds, init_seeds, print_best_val_metrics, compute_val_epoch_loss_MT, evaluate_val_MT, compute_epoch_loss_XNet, evaluate_XNet
 
 from hebb.makehebbian import makehebbian
 from models.networks_2d.unet import init_weights as init_weights_unet
@@ -54,7 +53,6 @@ if __name__ == '__main__':
     parser.add_argument('--validate_iter', default=2, type=int)
     parser.add_argument('-n', '--network', default='unet', type=str)
     parser.add_argument('--debug', default=True)
-    parser.add_argument('--ema_decay', default=0.99, type=float)
     
     parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
     parser.add_argument('--hebbian_rule', default='swta_t', type=str, help='hebbian rules to be used')
@@ -80,11 +78,11 @@ if __name__ == '__main__':
     # create folders
     if args.regime < 100:
         if args.load_hebbian_weights:
-            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_uamt_{}_{}".format(args.network, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_cps_{}_{}".format(args.network, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
         else:
-            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "uamt_{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "cps_{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     else:
-        path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "fully_sup", "uamt_{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+        path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "fully_sup", "cps_{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     if not os.path.exists(path_run):
         os.makedirs(path_run)
     path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))
@@ -102,7 +100,10 @@ if __name__ == '__main__':
     if args.debug:
         path_train_seg_results = os.path.join(os.path.join(path_run, "train_seg_preds"))
         if not os.path.exists(path_train_seg_results):
-            os.makedirs(path_train_seg_results)   
+            os.makedirs(path_train_seg_results)
+        path_train_seg_results2 = os.path.join(os.path.join(path_run, "train_seg_preds2"))
+        if not os.path.exists(path_train_seg_results2):
+            os.makedirs(path_train_seg_results2)   
 
     # create tensorboard writer
     writer = SummaryWriter(log_dir=os.path.join(path_run, 'runs'))
@@ -174,13 +175,17 @@ if __name__ == '__main__':
 
     if args.optimizer == "adam":
         optimizer1 = optim.Adam(model1.parameters(), lr=args.lr)
+        optimizer2 = optim.Adam(model2.parameters(), lr=args.lr)
     elif args.optimizer == "sgd":
         optimizer1 = optim.SGD(model1.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5 * 10 ** args.wd)
+        optimizer2 = optim.SGD(model2.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5 * 10 ** args.wd)
     else:
         print("Optimizer not implemented")
 
     exp_lr_scheduler1 = lr_scheduler.StepLR(optimizer1, step_size=args.step_size, gamma=args.gamma)
     scheduler_warmup1 = GradualWarmupScheduler(optimizer1, multiplier=1.0, total_epoch=args.warm_up_duration, after_scheduler=exp_lr_scheduler1)
+    exp_lr_scheduler2 = lr_scheduler.StepLR(optimizer2, step_size=args.step_size, gamma=args.gamma)
+    scheduler_warmup2 = GradualWarmupScheduler(optimizer2, multiplier=1.0, total_epoch=args.warm_up_duration, after_scheduler=exp_lr_scheduler2)
 
     # training loop
     since = time.time()
@@ -201,6 +206,7 @@ if __name__ == '__main__':
         model2.train()
 
         train_loss_sup_1 = 0.0
+        train_loss_sup_2 = 0.0
         train_loss_unsup = 0.0
         train_loss = 0.0
         val_loss_sup_1 = 0.0
@@ -213,37 +219,21 @@ if __name__ == '__main__':
 
         for i in range(num_batches['train_sup']):
             unsup_index = next(dataset_train_unsup)
-            img_train_unsup_1 = unsup_index['image']
-            img_train_unsup_1 = Variable(img_train_unsup_1.cuda(non_blocking=True))
-
-            noise = torch.clamp(torch.randn_like(img_train_unsup_1) * 0.1, -0.2, 0.2)
-            img_train_unsup_2 = img_train_unsup_1 + noise
+            img_train_unsup = unsup_index['image']
+            img_train_unsup = Variable(img_train_unsup.cuda(non_blocking=True))
 
             optimizer1.zero_grad()
+            optimizer2.zero_grad()
 
-            pred_train_unsup1 = model1(img_train_unsup_1)
-            with torch.no_grad():
-                pred_train_unsup2 = model2(img_train_unsup_2)
+            pred_train_unsup1 = model1(img_train_unsup)
+            pred_train_unsup2 = model2(img_train_unsup)
 
-            T = 8
-            _, _, w, h = img_train_unsup_1.shape
-            volume_batch_r = img_train_unsup_1.repeat(2, 1, 1, 1)
-            stride = volume_batch_r.shape[0] // 2
-            preds = torch.zeros([stride * T, cfg['NUM_CLASSES'], w, h]).cuda()
-            for i_ in range(T // 2):
-                ema_inputs = volume_batch_r + torch.clamp(torch.randn_like(volume_batch_r) * 0.1, -0.2, 0.2)
-                with torch.no_grad():
-                    preds[2 * stride * i_:2 * stride * (i_ + 1)] = model2(ema_inputs)
-            preds = torch.softmax(preds, dim=1)
-            preds = preds.reshape(T, stride, cfg['NUM_CLASSES'], w, h)
-            preds = torch.mean(preds, dim=0)
-            uncertainty = -1.0 * torch.sum(preds * torch.log(preds + 1e-6), dim=1, keepdim=True)
+            max_train1 = torch.max(pred_train_unsup1, dim=1)[1]
+            max_train2 = torch.max(pred_train_unsup2, dim=1)[1]
+            max_train1 = max_train1.long()
+            max_train2 = max_train2.long()
 
-            consistency_dist = softmax_mse_loss(pred_train_unsup1, pred_train_unsup2)  # (batch, 2, 112,112,80)
-            threshold = (0.75 + 0.25 * ramps.sigmoid_rampup(epoch, args.num_epochs)) * np.log(2)
-            mask = (uncertainty < threshold).float()
-            loss_train_unsup = torch.sum(mask * consistency_dist) / (2 * torch.sum(mask) + 1e-16)
-
+            loss_train_unsup = criterion(pred_train_unsup1, max_train2) + criterion(pred_train_unsup2, max_train1)
             loss_train_unsup = loss_train_unsup * unsup_weight
             loss_train_unsup.backward(retain_graph=True)
             torch.cuda.empty_cache()
@@ -256,60 +246,77 @@ if __name__ == '__main__':
             name_train = sup_index['ID']
 
             pred_train_sup1 = model1(img_train_sup)
+            pred_train_sup2 = model2(img_train_sup)
 
             if count_iter % args.display_iter == 0:
                 if i == 0:
-                    score_list_train = pred_train_sup1
+                    score_list_train1 = pred_train_sup1
+                    score_list_train2 = pred_train_sup2
                     mask_list_train = mask_train_sup
                     name_list_train = name_train
                 else:
-                    score_list_train = torch.cat((score_list_train, pred_train_sup1), dim=0)
+                    score_list_train1 = torch.cat((score_list_train1, pred_train_sup1), dim=0)
+                    score_list_train2 = torch.cat((score_list_train2, pred_train_sup2), dim=0)
                     mask_list_train = torch.cat((mask_list_train, mask_train_sup), dim=0)
                     name_list_train = np.append(name_list_train, name_train, axis=0)
 
             loss_train_sup1 = criterion(pred_train_sup1, mask_train_sup)
+            loss_train_sup2 = criterion(pred_train_sup2, mask_train_sup)
 
-            loss_train_sup = loss_train_sup1
+            loss_train_sup = loss_train_sup1 + loss_train_sup2
             loss_train_sup.backward()
-
+            
             optimizer1.step()
-            update_ema_variables(model1, model2, args.ema_decay, epoch)
+            optimizer2.step()
 
             loss_train = loss_train_unsup + loss_train_sup
             train_loss_unsup += loss_train_unsup.item()
             train_loss_sup_1 += loss_train_sup1.item()
+            train_loss_sup_2 += loss_train_sup2.item()
             train_loss += loss_train.item()
 
         scheduler_warmup1.step()
+        scheduler_warmup2.step()
 
         if count_iter % args.display_iter == 0:
             print('=' * print_num)
             print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
-            train_epoch_loss_sup, train_epoch_loss_unsup, train_epoch_loss = compute_epoch_loss_MT(train_loss_sup_1, train_loss_unsup, train_loss, num_batches, print_num, print_num_half, print_num_minus)
-            train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus)
+            train_epoch_loss_sup1, train_epoch_loss_sup2, train_epoch_loss_unsup, train_epoch_loss = compute_epoch_loss_XNet(train_loss_sup_1, train_loss_sup_2, train_loss_unsup, train_loss, num_batches, print_num, print_num_half, print_num_minus)
+            train_eval_list1, train_eval_list2 = evaluate_XNet(cfg['NUM_CLASSES'], score_list_train1, score_list_train2, mask_list_train, print_num_minus)
             if args.debug:
-                save_preds(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, cfg['PALETTE'])
+                save_preds(score_list_train1, train_eval_list1[0], name_list_train, path_train_seg_results, cfg['PALETTE'])
+                save_preds(score_list_train2, train_eval_list2[0], name_list_train, path_train_seg_results2, cfg['PALETTE'])
 
             # saving metrics to tensorboard writer
-            writer.add_scalar('train/segm_loss', train_epoch_loss_sup, count_iter)
+            writer.add_scalar('train/segm_loss', train_epoch_loss_sup1, count_iter)
+            writer.add_scalar('train/segm_loss2', train_epoch_loss_sup2, count_iter)
             writer.add_scalar('train/unsup_loss', train_epoch_loss_unsup, count_iter)
             writer.add_scalar('train/total_loss', train_epoch_loss, count_iter)
             writer.add_scalar('train/lr', optimizer1.param_groups[0]['lr'], count_iter)
-            writer.add_scalar('train/DC', train_eval_list[2], count_iter)
-            writer.add_scalar('train/JI', train_eval_list[1], count_iter)
-            writer.add_scalar('train/thresh', train_eval_list[0], count_iter)
+            writer.add_scalar('train/lr2', optimizer2.param_groups[0]['lr'], count_iter)
+            writer.add_scalar('train/DC', train_eval_list1[2], count_iter)
+            writer.add_scalar('train/JI', train_eval_list1[1], count_iter)
+            writer.add_scalar('train/thresh', train_eval_list1[0], count_iter)
+            writer.add_scalar('train/DC2', train_eval_list2[2], count_iter)
+            writer.add_scalar('train/JI2', train_eval_list2[1], count_iter)
+            writer.add_scalar('train/thresh2', train_eval_list2[0], count_iter)
             writer.add_scalar('train/lambda_unsup', unsup_weight, count_iter)
 
             # saving metrics to list
             train_metrics.append({
                 'epoch': count_iter,
-                'segm/loss': train_epoch_loss_sup,
+                'segm/loss': train_epoch_loss_sup1,
+                'segm/loss2': train_epoch_loss_sup2,
                 'segm/unsup_loss': train_epoch_loss_unsup,
                 'segm/total_loss': train_epoch_loss,
-                'segm/dice': train_eval_list[2],
-                'segm/jaccard': train_eval_list[1],
+                'segm/dice': train_eval_list1[2],
+                'segm/jaccard': train_eval_list1[1],
                 'lr': optimizer1.param_groups[0]['lr'],
-                'thresh': train_eval_list[0],
+                'thresh': train_eval_list1[0],
+                'segm/dice2': train_eval_list2[2],
+                'segm/jaccard2': train_eval_list2[1],
+                'lr2': optimizer2.param_groups[0]['lr'],
+                'thresh2': train_eval_list2[0],
             })
 
         if count_iter % args.validate_iter == 0:
@@ -325,6 +332,7 @@ if __name__ == '__main__':
                     name_val = data['ID']
 
                     optimizer1.zero_grad()
+                    optimizer2.zero_grad()
 
                     outputs_val1 = model1(inputs_val)
                     outputs_val2 = model2(inputs_val)
@@ -430,3 +438,4 @@ if __name__ == '__main__':
     print('-' * print_num)
     print_best_val_metrics(cfg['NUM_CLASSES'], best_val_eval_list, print_num_minus)
     print('=' * print_num)
+

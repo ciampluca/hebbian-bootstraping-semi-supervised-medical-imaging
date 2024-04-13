@@ -134,5 +134,4 @@ dmypy.json
 /.vscode/
 data/
 runs/
-runs_bis/
-runs_debug/
+runs_*/

@@ -212,21 +212,21 @@ class UNet_URPC(nn.Module):
         #self.decoder = Decoder_URPC(params)
 
         self.up1 = UpBlock(
-            self.ft_chns[4], self.ft_chns[3], self.ft_chns[3], dropout_p=0.0)
+            params['feature_chns'][4], params['feature_chns'][3], params['feature_chns'][3], dropout_p=0.0)
         self.up2 = UpBlock(
-            self.ft_chns[3], self.ft_chns[2], self.ft_chns[2], dropout_p=0.0)
+            params['feature_chns'][3], params['feature_chns'][2], params['feature_chns'][2], dropout_p=0.0)
         self.up3 = UpBlock(
-            self.ft_chns[2], self.ft_chns[1], self.ft_chns[1], dropout_p=0.0)
+            params['feature_chns'][2], params['feature_chns'][1], params['feature_chns'][1], dropout_p=0.0)
         self.up4 = UpBlock(
-            self.ft_chns[1], self.ft_chns[0], self.ft_chns[0], dropout_p=0.0)
+            params['feature_chns'][1], params['feature_chns'][0], params['feature_chns'][0], dropout_p=0.0)
 
-        self.out_conv = nn.Conv2d(self.ft_chns[0], self.n_class,
+        self.out_conv = nn.Conv2d(params['feature_chns'][0], class_num,
                                   kernel_size=3, padding=1)
-        self.out_conv_dp3 = nn.Conv2d(self.ft_chns[3], self.n_class,
+        self.out_conv_dp3 = nn.Conv2d(params['feature_chns'][3], class_num,
                                       kernel_size=3, padding=1)
-        self.out_conv_dp2 = nn.Conv2d(self.ft_chns[2], self.n_class,
+        self.out_conv_dp2 = nn.Conv2d(params['feature_chns'][2], class_num,
                                       kernel_size=3, padding=1)
-        self.out_conv_dp1 = nn.Conv2d(self.ft_chns[1], self.n_class,
+        self.out_conv_dp1 = nn.Conv2d(params['feature_chns'][1], class_num,
                                       kernel_size=3, padding=1)
 
     def forward(self, x):

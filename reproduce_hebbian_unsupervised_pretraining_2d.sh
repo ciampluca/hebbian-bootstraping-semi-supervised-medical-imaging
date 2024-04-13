@@ -42,8 +42,8 @@ EXP_ROOT=./runs
 for K in ${K_VALUES[@]}; do
     for DATASET in ${DATASETS[@]}; do
         for HEBB_MODE in ${HEBB_MODES[@]}; do
-            #python pretrain_hebbian_unsup_2d.py --dataset_name $DATASET --network unet --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed 0 --validate_iter 2 --device $GPU --lr $LR --loss dice --hebb_mode $HEBB_MODE --hebb_inv_temp $K --exclude $EXCLUDE_LAYER #--threshold $THRESHOLD
-            #python test_2d.py --dataset_name $DATASET --network unet --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best last --path_exp $EXP_ROOT/$DATASET/hebbian_unsup/unet_$HEBB_MODE/inv_temp-$K/regime-100/run-0 --hebbian_pretrain True #--threshold 0
+            python pretrain_hebbian_unsup_2d.py --dataset_name $DATASET --network unet --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed 0 --validate_iter 2 --device $GPU --lr $LR --loss dice --hebb_mode $HEBB_MODE --hebb_inv_temp $K --exclude $EXCLUDE_LAYER #--threshold $THRESHOLD
+            python test_2d.py --dataset_name $DATASET --network unet --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best last --path_exp $EXP_ROOT/$DATASET/hebbian_unsup/unet_$HEBB_MODE/inv_temp-$K/regime-100/run-0 --hebbian_pretrain True #--threshold 0
             python pretrain_hebbian_unsup_2d.py --dataset_name $DATASET --network unet_urpc --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed 0 --validate_iter 2 --device $GPU --lr $LR --loss dice --hebb_mode $HEBB_MODE --hebb_inv_temp $K --exclude $EXCLUDE_LAYER #--threshold $THRESHOLD
             python test_2d.py --dataset_name $DATASET --network unet_urpc --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best last --path_exp $EXP_ROOT/$DATASET/hebbian_unsup/unet_$HEBB_MODE/inv_temp-$K/regime-100/run-0 --hebbian_pretrain True #--threshold 0        
         done

@@ -158,7 +158,6 @@ if __name__ == '__main__':
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
 
     # eventually load hebbian weights
-    # TODO check which layers to exclude in this case
     hebb_params, exclude, exclude_layer_names = None, None, None
     if args.load_hebbian_weights:
         print("Loading Hebbian pre-trained weights")

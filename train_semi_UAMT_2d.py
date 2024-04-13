@@ -160,11 +160,35 @@ if __name__ == '__main__':
     model1 = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
     model2 = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
 
-    # TODO
     # eventually load hebbian weights
     hebb_params, exclude, exclude_layer_names = None, None, None
     if args.load_hebbian_weights:
-        print("To be implemented")
+        print("Loading Hebbian pre-trained weights")
+        state_dict = torch.load(args.load_hebbian_weights, map_location='cpu')
+        hebb_params = state_dict['hebb_params']
+        hebb_params['alpha'] = 0
+        exclude = state_dict['excluded_layers']
+        model1 = makehebbian(model1, exclude=exclude, hebb_params=hebb_params)
+        model1.load_state_dict(state_dict['model'])
+
+        exclude_layer_names = exclude
+        if exclude is None: exclude = []
+        exclude = [(n, m) for n, m in model1.named_modules() if any([n == e for e in exclude])]
+        exclude = [m for _, p in exclude for m in [*p.modules()]]
+        for m in exclude:
+            init_weights_unet(m, init_type='kaiming')
+
+        model2_params = {n: p for n, p in model2.named_parameters()}
+
+        for n, p in model1.named_parameters():
+            p.requires_grad = True
+            model2_params[n].data += p
+            model2_params[n].requires_grad = True
+
+        exclude = [(n, m) for n, m in model2.named_modules() if any([n == e for e in exclude])]
+        exclude = [m for _, p in exclude for m in [*p.modules()]]
+        for m in exclude:
+            init_weights_unet(m, init_type='kaiming')
 
     model1 = model1.cuda()
     model2 = model2.cuda()

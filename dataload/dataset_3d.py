@@ -38,7 +38,10 @@ class dataset_it(Dataset):
             num_images = math.ceil((len_img_paths / 100) * regime)
 
             random.Random(seed).shuffle(self.subjects_1)
-            self.subjects_1 = self.subjects_1[:num_images]
+            if sup:
+                self.subjects_1 = self.subjects_1[:num_images]
+            else:
+                self.subjects_1 = self.subjects_1[num_images:]
 
         self.dataset_1 = tio.SubjectsDataset(self.subjects_1, transform=transform_1)
 

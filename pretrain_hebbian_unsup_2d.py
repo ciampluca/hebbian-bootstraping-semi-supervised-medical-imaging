@@ -180,7 +180,11 @@ if __name__ == '__main__':
                 mask_train = torch.unsqueeze(mask_train, dim=1)
 
             optimizer.zero_grad()
-            outputs_train = model(inputs_train)
+
+            if args.network == "unet_urpc":
+                outputs_train, _, _, _ = model(inputs_train)
+            else:
+                outputs_train = model(inputs_train)
 
             if args.deep_supervision:
                 loss_train = 0
@@ -250,7 +254,11 @@ if __name__ == '__main__':
                     name_val = data['ID']
 
                     optimizer.zero_grad()
-                    outputs_val = model(inputs_val)
+
+                    if args.network == "unet_urpc":
+                        outputs_val, _, _, _ = model(inputs_val)
+                    else:
+                        outputs_val = model(inputs_val)
 
                     if args.deep_supervision:
                         loss_val = 0

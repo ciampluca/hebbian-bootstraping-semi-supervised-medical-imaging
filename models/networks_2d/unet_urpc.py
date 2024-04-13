@@ -164,15 +164,12 @@ class Decoder_URPC(nn.Module):
 
         self.out_conv = nn.Conv2d(self.ft_chns[0], self.n_class,
                                   kernel_size=3, padding=1)
-        # self.out_conv_dp4 = nn.Conv2d(self.ft_chns[4], self.n_class,
-        #                               kernel_size=3, padding=1)
         self.out_conv_dp3 = nn.Conv2d(self.ft_chns[3], self.n_class,
                                       kernel_size=3, padding=1)
         self.out_conv_dp2 = nn.Conv2d(self.ft_chns[2], self.n_class,
                                       kernel_size=3, padding=1)
         self.out_conv_dp1 = nn.Conv2d(self.ft_chns[1], self.n_class,
                                       kernel_size=3, padding=1)
-        # self.feature_noise = FeatureNoise()
 
     def forward(self, feature, shape):
         x0 = feature[0]
@@ -181,27 +178,18 @@ class Decoder_URPC(nn.Module):
         x3 = feature[3]
         x4 = feature[4]
         x = self.up1(x4, x3)
-        if self.training:
-            # dp3_out_seg = self.out_conv_dp3(Dropout(x, p=0.5))
-            dp3_out_seg = self.out_conv_dp3(x)
-        else:
-            dp3_out_seg = self.out_conv_dp3(x)
+
+        dp3_out_seg = self.out_conv_dp3(x)
         dp3_out_seg = torch.nn.functional.interpolate(dp3_out_seg, shape)
 
         x = self.up2(x, x2)
-        if self.training:
-            # dp2_out_seg = self.out_conv_dp2(FeatureDropout(x))
-            dp2_out_seg = self.out_conv_dp2(x)
-        else:
-            dp2_out_seg = self.out_conv_dp2(x)
+
+        dp2_out_seg = self.out_conv_dp2(x)
         dp2_out_seg = torch.nn.functional.interpolate(dp2_out_seg, shape)
 
         x = self.up3(x, x1)
-        if self.training:
-            # dp1_out_seg = self.out_conv_dp1(self.feature_noise(x))
-            dp1_out_seg = self.out_conv_dp1(x)
-        else:
-            dp1_out_seg = self.out_conv_dp1(x)
+
+        dp1_out_seg = self.out_conv_dp1(x)
         dp1_out_seg = torch.nn.functional.interpolate(dp1_out_seg, shape)
 
         x = self.up4(x, x0)
@@ -221,14 +209,59 @@ class UNet_URPC(nn.Module):
                   'bilinear': False,
                   'acti_func': 'relu'}
         self.encoder = Encoder(params)
-        self.decoder = Decoder_URPC(params)
+        #self.decoder = Decoder_URPC(params)
+
+        self.up1 = UpBlock(
+            self.ft_chns[4], self.ft_chns[3], self.ft_chns[3], dropout_p=0.0)
+        self.up2 = UpBlock(
+            self.ft_chns[3], self.ft_chns[2], self.ft_chns[2], dropout_p=0.0)
+        self.up3 = UpBlock(
+            self.ft_chns[2], self.ft_chns[1], self.ft_chns[1], dropout_p=0.0)
+        self.up4 = UpBlock(
+            self.ft_chns[1], self.ft_chns[0], self.ft_chns[0], dropout_p=0.0)
+
+        self.out_conv = nn.Conv2d(self.ft_chns[0], self.n_class,
+                                  kernel_size=3, padding=1)
+        self.out_conv_dp3 = nn.Conv2d(self.ft_chns[3], self.n_class,
+                                      kernel_size=3, padding=1)
+        self.out_conv_dp2 = nn.Conv2d(self.ft_chns[2], self.n_class,
+                                      kernel_size=3, padding=1)
+        self.out_conv_dp1 = nn.Conv2d(self.ft_chns[1], self.n_class,
+                                      kernel_size=3, padding=1)
 
     def forward(self, x):
         shape = x.shape[2:]
         feature = self.encoder(x)
-        dp1_out_seg, dp2_out_seg, dp3_out_seg, dp4_out_seg = self.decoder(
-            feature, shape)
-        return dp1_out_seg, dp2_out_seg, dp3_out_seg, dp4_out_seg
+
+        #dp1_out_seg, dp2_out_seg, dp3_out_seg, dp4_out_seg = self.decoder(
+        #    feature, shape)
+        
+        x0 = feature[0]
+        x1 = feature[1]
+        x2 = feature[2]
+        x3 = feature[3]
+        x4 = feature[4]
+        x = self.up1(x4, x3)
+
+        dp3_out_seg = self.out_conv_dp3(x)
+        dp3_out_seg = torch.nn.functional.interpolate(dp3_out_seg, shape)
+
+        x = self.up2(x, x2)
+
+        dp2_out_seg = self.out_conv_dp2(x)
+        dp2_out_seg = torch.nn.functional.interpolate(dp2_out_seg, shape)
+
+        x = self.up3(x, x1)
+
+        dp1_out_seg = self.out_conv_dp1(x)
+        dp1_out_seg = torch.nn.functional.interpolate(dp1_out_seg, shape)
+
+        x = self.up4(x, x0)
+        dp0_out_seg = self.out_conv(x)
+
+        return dp0_out_seg, dp1_out_seg, dp2_out_seg, dp3_out_seg
+
+        #return dp1_out_seg, dp2_out_seg, dp3_out_seg, dp4_out_seg
 
 def unet_urpc(in_channels, num_classes):
     model = UNet_URPC(in_channels, num_classes)

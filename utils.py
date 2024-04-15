@@ -404,6 +404,9 @@ def postprocess_3d_pred(dataset_name, pred_path, save_path, fill_hole_thr=500):
             box.append(labeled_list[i].area)
             label_num = box.index(max(box)) + 1
 
+        if not np.any(labeled_image):
+            return labeled_image
+
         labeled_image[labeled_image != label_num] = 0
         labeled_image[labeled_image == label_num] = 1
 

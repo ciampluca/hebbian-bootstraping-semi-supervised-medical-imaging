@@ -56,7 +56,7 @@ for K in ${K_VALUES[@]}; do
                     for REP in $(seq $(( $START_REP )) $(( $REPS - 1 ))); do
                         HEBBIAN_WEIGHTS_PATH="./runs/Atrial/hebbian_unsup/$NETWORK"_swta_t"/inv_temp-$K/regime-100/run-0/checkpoints/last.pth"
                         python train_sup_3d.py --dataset_name $DATASET --network $NETWORK --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --regime $REGIME --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed $REP --validate_iter 2 --device $GPU --lr $LR --loss dice --patch_size "(96, 96, 80)" --load_hebbian_weights $HEBBIAN_WEIGHTS_PATH --hebbian_rule $HEBB_MODE --hebb_inv_temp $K  
-                        python test_3d.py --dataset_name $DATASET --network $NETWORK --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/semi_sup/h_"$NETWORK"_"$HEBB_MODE"/inv_temp-$K/regime-$REGIME/run-$REP --patch_size "(96, 96, 80)" --patch_overlap "(48, 48, 20)" --hebbian_pretrain True
+                        python test_3d.py --dataset_name $DATASET --network $NETWORK --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/semi_sup/h_"$NETWORK"_"$HEBB_MODE"/inv_temp-$K/regime-$REGIME/run-$REP --patch_size "(96, 96, 80)" --patch_overlap "(48, 48, 20)" --hebbian_pretrain True --device $GPU
                     done
                 done
             done

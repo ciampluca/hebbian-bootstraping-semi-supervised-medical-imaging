@@ -428,7 +428,6 @@ if __name__ == '__main__':
                     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
                     save_preds_3d(best_score_list_val, best_val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val)
 
-
                 # saving metrics to tensorboard writer
                 writer.add_scalar('val/segm_loss', val_epoch_loss1, count_iter)
                 writer.add_scalar('val/DC', val_eval_list1[2], count_iter)

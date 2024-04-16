@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from models.getnetwork import get_network
 from config.dataset_config.dataset_cfg import dataset_cfg
 from config.augmentation.online_aug import data_transform_2d, data_normalize_2d
-from loss.loss_function import segmentation_loss, softmax_mse_loss
+from loss.loss_function import segmentation_loss
 from dataload.dataset_2d import imagefloder_itn
 from config.warmup_config.warmup import GradualWarmupScheduler
 from utils import save_snapshot, save_preds, init_seeds, print_best_val_metrics, compute_val_epoch_loss_MT, evaluate_val_MT, compute_epoch_loss_XNet, evaluate_XNet

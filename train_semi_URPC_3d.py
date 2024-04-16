@@ -1,116 +1,117 @@
-from torchvision import transforms, datasets
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.optim import lr_scheduler
-from torch.autograd import Variable
-from torch.utils.data import DataLoader
 import argparse
 import time
 import os
 import numpy as np
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel
-from torch.backends import cudnn
-import random
+import pandas as pd
+import json
+
+import torch
+import torch.optim as optim
+from torch.optim import lr_scheduler
+from torch.autograd import Variable
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 import torchio as tio
 
 from config.dataset_config.dataset_cfg import dataset_cfg
-from config.train_test_config.train_test_config import print_train_loss_EM, print_val_loss_sup, print_train_eval_sup, print_val_eval_sup, save_val_best_sup_3d, print_best_sup
-from config.visdom_config.visual_visdom import visdom_initialization_EM, visualization_EM
 from config.warmup_config.warmup import GradualWarmupScheduler
 from config.augmentation.online_aug import data_transform_3d
 from loss.loss_function import segmentation_loss
 from models.getnetwork import get_network
 from dataload.dataset_3d import dataset_it
-from warnings import simplefilter
 
+from hebb.makehebbian import makehebbian
+from models.networks_3d.unet3d import init_weights as init_weights_unet3d
+from models.networks_3d.vnet import init_weights as init_weights_vnet
+from utils import save_snapshot, init_seeds, print_best_val_metrics, save_preds_3d, compute_val_epoch_loss_MT, evaluate_val_MT, compute_epoch_loss_XNet, evaluate_XNet
+
+from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
 
-
-def init_seeds(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(0)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path_trained_models', default='/mnt/data1/XNet/checkpoints/semi')
-    parser.add_argument('--path_seg_results', default='/mnt/data1/XNet/seg_pred/semi')
-    parser.add_argument('--path_dataset', default='/mnt/data1/XNet/dataset/Atrial')
-    parser.add_argument('--dataset_name', default='Atrial', help='LiTS, Atrial')
+
+    parser.add_argument('--device', default=0, type=int)
+    parser.add_argument('--path_root_exp', default='./runs')
+    parser.add_argument('--path_dataset', default='data/Atrial')
+    parser.add_argument('--dataset_name', default='Atrial', help='Atrial')
     parser.add_argument('--input1', default='image')
-    parser.add_argument('--sup_mark', default='20')
-    parser.add_argument('--unsup_mark', default='80')
+    parser.add_argument('--regime', default=20, type=int, help="percentage of labeled data to be used")
     parser.add_argument('-b', '--batch_size', default=1, type=int)
     parser.add_argument('-e', '--num_epochs', default=200, type=int)
     parser.add_argument('-s', '--step_size', default=50, type=int)
+    parser.add_argument('--optimizer', default="sgd", type=str, help="adam, sgd")
     parser.add_argument('-l', '--lr', default=0.1, type=float)
     parser.add_argument('-g', '--gamma', default=0.5, type=float)
-    parser.add_argument('-c', '--unsup_weight', default=5, type=float)
     parser.add_argument('--patch_size', default=(96, 96, 80))
     parser.add_argument('--loss', default='dice', type=str)
     parser.add_argument('-w', '--warm_up_duration', default=20)
     parser.add_argument('--momentum', default=0.9, type=float)
     parser.add_argument('--wd', default=-5, type=float, help='weight decay pow')
+    parser.add_argument('--seed', default=0, type=int)
+    parser.add_argument('-c', '--unsup_weight', default=50, type=float)
+    parser.add_argument('-i', '--display_iter', default=1, type=int)
+    parser.add_argument('--validate_iter', default=2, type=int)
     parser.add_argument('--queue_length', default=48, type=int)
     parser.add_argument('--samples_per_volume_train', default=4, type=int)
     parser.add_argument('--samples_per_volume_val', default=8, type=int)
-
-    parser.add_argument('-i', '--display_iter', default=5, type=int)
     parser.add_argument('-n', '--network', default='unet3d_urpc', type=str)
-    parser.add_argument('--local_rank', default=-1, type=int)
-    parser.add_argument('--rank_index', default=0, help='0, 1, 2, 3')
-    parser.add_argument('-v', '--vis', default=False, help='need visualization or not')
-    parser.add_argument('--visdom_port', default=16672, help='16672')
+    parser.add_argument('--debug', default=True)
+
+    parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
+    parser.add_argument('--hebbian-rule', default='swta_t', type=str, help='hebbian rules to be used')
+    parser.add_argument('--hebb_inv_temp', default=1, type=int, help='hebbian temp')
+
     args = parser.parse_args()
 
-    torch.cuda.set_device(0)
-    # dist.init_process_group(backend='nccl', init_method='env://')
+     # set cuda device
+    torch.cuda.set_device(args.device)
+    init_seeds(args.seed)
 
-    # rank = torch.distributed.get_rank()
-    # ngpus_per_node = torch.cuda.device_count()
-    init_seeds(1)
-
+    # load dataset config
     dataset_name = args.dataset_name
     cfg = dataset_cfg(dataset_name)
 
-    print_num = 77 + (cfg['NUM_CLASSES'] - 3) * 14
+    print_num = 42 + (cfg['NUM_CLASSES'] - 3) * 7
     print_num_minus = print_num - 2
     print_num_half = int(print_num / 2 - 1)
 
     if isinstance(args.patch_size, str):
         args.patch_size = eval(args.patch_size)
 
-    path_trained_models = args.path_trained_models + '/' + str(os.path.split(args.path_dataset)[1])
+    # create folders
+    net_name = "unet" if args.network == "unet_urpc" else args.network
+    if args.regime < 100:
+        if args.load_hebbian_weights:
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_urpc_{}_{}".format(net_name, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
+        else:
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "urpc_{}".format(net_name), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+    else:
+        path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "fully_sup", "urpc_{}".format(net_name), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+    if not os.path.exists(path_run):
+        os.makedirs(path_run)
+    path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))
     if not os.path.exists(path_trained_models):
-        os.mkdir(path_trained_models)
-    path_trained_models = path_trained_models + '/' + 'URPC' + '-l=' + str(args.lr) + '-e=' + str(args.num_epochs) + '-s=' + str(args.step_size) + '-g=' + str(args.gamma) + '-b=' + str(args.batch_size) + '-cw=' + str(args.unsup_weight) + '-w=' + str(args.warm_up_duration)+ '-' + str(args.sup_mark) + '-' + str(args.unsup_mark) + '-' + str(args.input1)
-    if not os.path.exists(path_trained_models):
-        os.mkdir(path_trained_models)
+        os.makedirs(path_trained_models)  
+    path_tensorboard = os.path.join(os.path.join(path_run, "runs"))
+    if not os.path.exists(path_tensorboard):
+        os.makedirs(path_tensorboard)
+    path_seg_results = os.path.join(os.path.join(path_run, "val_seg_preds"))
+    if not os.path.exists(path_seg_results):
+        os.makedirs(path_seg_results)
+    if args.debug:
+        path_train_seg_results = os.path.join(os.path.join(path_run, "train_seg_preds"))
+        if not os.path.exists(path_train_seg_results):
+            os.makedirs(path_train_seg_results)
 
-    path_seg_results = args.path_seg_results + '/' + str(os.path.split(args.path_dataset)[1])
-    if not os.path.exists(path_seg_results):
-        os.mkdir(path_seg_results)
-    path_seg_results = path_seg_results + '/' + 'URPC' + '-l=' + str(args.lr) + '-e=' + str(args.num_epochs) + '-s=' + str(args.step_size) + '-g=' + str(args.gamma) + '-b=' + str(args.batch_size) + '-cw=' + str(args.unsup_weight) + '-w=' + str(args.warm_up_duration)+ '-' + str(args.sup_mark) + '-' + str(args.unsup_mark) + '-' + str(args.input1)
-    if not os.path.exists(path_seg_results):
-        os.mkdir(path_seg_results)
-    path_mask_results = path_seg_results + '/mask'
-    if not os.path.exists(path_mask_results):
-        os.mkdir(path_mask_results)
-    path_seg_results = path_seg_results + '/pred'
-    if not os.path.exists(path_seg_results):
-        os.mkdir(path_seg_results)
+    # create tensorboard writer
+    writer = SummaryWriter(log_dir=os.path.join(path_run, 'runs'))
 
-    if args.vis:
-        visdom_env = str('Semi-UPRC-' + str(os.path.split(args.path_dataset)[1]) + '-' + args.network + '-l=' + str(args.lr) + '-e=' + str(args.num_epochs) + '-s=' + str(args.step_size) + '-g=' + str(args.gamma) + '-b=' + str(args.batch_size) + '-cw=' + str(args.unsup_weight) + '-w=' + str(args.warm_up_duration)+ '-' + str(args.sup_mark) + '-' + str(args.unsup_mark) + '-' + str(args.input1))
-        visdom = visdom_initialization_EM(env=visdom_env, port=args.visdom_port)
+    # save config to file
+    with open(os.path.join(path_run, "config.json"), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
 
     # Dataset
     data_transform = data_transform_3d(cfg['NORMALIZE'])
@@ -157,10 +158,6 @@ if __name__ == '__main__':
         num_images=None
     )
 
-    # train_sampler_unsup = torch.utils.data.distributed.DistributedSampler(dataset_train_unsup.queue_train_set_1, shuffle=True)
-    # train_sampler_sup = torch.utils.data.distributed.DistributedSampler(dataset_train_sup.queue_train_set_1, shuffle=True)
-    # val_sampler = torch.utils.data.distributed.DistributedSampler(dataset_val.queue_train_set_1, shuffle=False)
-
     dataloaders = dict()
     dataloaders['train_sup'] = DataLoader(dataset_train_sup.queue_train_set_1, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=0)
     dataloaders['train_unsup'] = DataLoader(dataset_train_unsup.queue_train_set_1, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=0)
@@ -168,12 +165,39 @@ if __name__ == '__main__':
 
     num_batches = {'train_sup': len(dataloaders['train_sup']), 'train_unsup': len(dataloaders['train_unsup']), 'val': len(dataloaders['val'])}
 
-    # Model
-    model1 = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
+    # create models
+    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
 
-    model1 = model1.cuda()
-    # model1 = DistributedDataParallel(model1, device_ids=[args.local_rank])
-    # dist.barrier()
+    # eventually load hebbian weights
+    hebb_params, exclude, exclude_layer_names = None, None, None
+    if args.load_hebbian_weights:
+        print("Loading Hebbian pre-trained weights")
+        state_dict = torch.load(args.load_hebbian_weights, map_location='cpu')
+        hebb_params = state_dict['hebb_params']
+        hebb_params['alpha'] = 0
+        exclude = state_dict['excluded_layers']
+        model = makehebbian(model, exclude=exclude, hebb_params=hebb_params)
+        model.load_state_dict(state_dict['model'])
+
+        exclude_layer_names = exclude
+        if exclude is None: exclude = []
+        exclude = [(n, m) for n, m in model.named_modules() if any([n == e for e in exclude])]
+        exclude = [m for _, p in exclude for m in [*p.modules()]]
+
+        if args.network == 'unet3d':
+            init_weights = init_weights_unet3d
+        elif args.network == 'vnet':
+            init_weights = init_weights_vnet
+        for m in exclude:
+            init_weights(m, init_type='kaiming')
+
+        for p in model.parameters():
+            p.requires_grad = True
+
+    model = model.cuda()
+
+
+
 
     # Training Strategy
     criterion = segmentation_loss(args.loss, False).cuda()

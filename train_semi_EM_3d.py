@@ -292,6 +292,28 @@ if __name__ == '__main__':
                 name_list_train = [name + ".{}".format(ext) for name in name_list_train]
                 save_preds_3d(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, affine_list_train)
 
+            # saving metrics to tensorboard writer
+            writer.add_scalar('train/segm_loss', train_epoch_loss_sup, count_iter)
+            writer.add_scalar('train/unsup_loss', train_epoch_loss_unsup, count_iter)
+            writer.add_scalar('train/total_loss', train_epoch_loss, count_iter)
+            writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], count_iter)
+            writer.add_scalar('train/DC', train_eval_list[2], count_iter)
+            writer.add_scalar('train/JI', train_eval_list[1], count_iter)
+            writer.add_scalar('train/thresh', train_eval_list[0], count_iter)
+            writer.add_scalar('train/lambda_unsup', unsup_weight, count_iter)
+
+            # saving metrics to list
+            train_metrics.append({
+                'epoch': count_iter,
+                'segm/loss': train_epoch_loss_sup,
+                'segm/unsup_loss': train_epoch_loss_unsup,
+                'segm/total_loss': train_epoch_loss,
+                'segm/dice': train_eval_list[2],
+                'segm/jaccard': train_eval_list[1],
+                'lr': optimizer.param_groups[0]['lr'],
+                'thresh': train_eval_list[0],
+            })
+
         if count_iter % args.validate_iter == 0:
             metrics_debug = []
 

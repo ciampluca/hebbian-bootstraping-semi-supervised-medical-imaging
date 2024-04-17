@@ -196,54 +196,51 @@ if __name__ == '__main__':
 
     model = model.cuda()
 
-
-
-
-    # Training Strategy
+    # define criterion, optimizer, and scheduler
     criterion = segmentation_loss(args.loss, False).cuda()
     kl_distance = nn.KLDivLoss(reduction='none')
 
-    optimizer1 = optim.SGD(model1.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5 * 10 ** args.wd)
-    exp_lr_scheduler1 = lr_scheduler.StepLR(optimizer1, step_size=args.step_size, gamma=args.gamma)
-    scheduler_warmup1 = GradualWarmupScheduler(optimizer1, multiplier=1.0, total_epoch=args.warm_up_duration, after_scheduler=exp_lr_scheduler1)
+    if args.optimizer == "adam":
+        optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    elif args.optimizer == "sgd":
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5*10**args.wd)
+    else:
+        print("Optimizer not implemented")
 
-    # Train & Val
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
+    scheduler_warmup = GradualWarmupScheduler(optimizer, multiplier=1.0, total_epoch=args.warm_up_duration, after_scheduler=exp_lr_scheduler)
+
+    # training loop
     since = time.time()
     count_iter = 0
-
     best_val_eval_list = [0 for i in range(4)]
+    train_metrics, val_metrics = [], []
 
     for epoch in range(args.num_epochs):
 
         count_iter += 1
-        if (count_iter - 1) % args.display_iter == 0:
+        if (count_iter-1) % args.display_iter == 0:
             begin_time = time.time()
 
-        # dataloaders['train_sup'].sampler.set_epoch(epoch)
-        # dataloaders['train_unsup'].sampler.set_epoch(epoch)
-        model1.train()
+        model.train()
 
-        train_loss_sup_1 = 0.0
+        train_loss_sup = 0.0
         train_loss_unsup = 0.0
         train_loss = 0.0
-
-        val_loss_sup_1 = 0.0
+        val_loss = 0.0
 
         unsup_weight = args.unsup_weight * (epoch + 1) / args.num_epochs
-
-        #dist.barrier()
 
         dataset_train_sup = iter(dataloaders['train_sup'])
         dataset_train_unsup = iter(dataloaders['train_unsup'])
 
         for i in range(num_batches['train_sup']):
-
             unsup_index = next(dataset_train_unsup)
-            img_train_unsup_1 = Variable(unsup_index['image'][tio.DATA].cuda())
+            img_train_unsup = Variable(unsup_index['image'][tio.DATA].cuda())
 
-            optimizer1.zero_grad()
+            optimizer.zero_grad()
 
-            pred_train_unsup1, pred_train_unsup2, pred_train_unsup3, pred_train_unsup4 = model1(img_train_unsup_1)
+            pred_train_unsup1, pred_train_unsup2, pred_train_unsup3, pred_train_unsup4 = model(img_train_unsup)
             pred_train_unsup1 = torch.softmax(pred_train_unsup1, 1)
             pred_train_unsup2 = torch.softmax(pred_train_unsup2, 1)
             pred_train_unsup3 = torch.softmax(pred_train_unsup3, 1)
@@ -253,25 +250,19 @@ if __name__ == '__main__':
 
             variance_aux1 = torch.sum(kl_distance(torch.log(pred_train_unsup1), preds), dim=1, keepdim=True)
             exp_variance_aux1 = torch.exp(-variance_aux1)
-
             variance_aux2 = torch.sum(kl_distance(torch.log(pred_train_unsup2), preds), dim=1, keepdim=True)
             exp_variance_aux2 = torch.exp(-variance_aux2)
-
             variance_aux3 = torch.sum(kl_distance(torch.log(pred_train_unsup3), preds), dim=1, keepdim=True)
             exp_variance_aux3 = torch.exp(-variance_aux3)
-
             variance_aux4 = torch.sum(kl_distance(torch.log(pred_train_unsup4), preds), dim=1, keepdim=True)
             exp_variance_aux4 = torch.exp(-variance_aux4)
 
             consistency_dist_aux1 = (preds - pred_train_unsup1) ** 2
             consistency_loss_aux1 = torch.mean(consistency_dist_aux1 * exp_variance_aux1) / (torch.mean(exp_variance_aux1) + 1e-8) + torch.mean(variance_aux1)
-
             consistency_dist_aux2 = (preds - pred_train_unsup2) ** 2
             consistency_loss_aux2 = torch.mean(consistency_dist_aux2 * exp_variance_aux2) / (torch.mean(exp_variance_aux2) + 1e-8) + torch.mean(variance_aux2)
-
             consistency_dist_aux3 = (preds - pred_train_unsup3) ** 2
             consistency_loss_aux3 = torch.mean(consistency_dist_aux3 * exp_variance_aux3) / (torch.mean(exp_variance_aux3) + 1e-8) + torch.mean(variance_aux3)
-
             consistency_dist_aux4 = (preds - pred_train_unsup4) ** 2
             consistency_loss_aux4 = torch.mean(consistency_dist_aux4 * exp_variance_aux4) / (torch.mean(exp_variance_aux4) + 1e-8) + torch.mean(variance_aux4)
 
@@ -282,102 +273,170 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
 
             sup_index = next(dataset_train_sup)
-            img_train_sup_1 = Variable(sup_index['image'][tio.DATA].cuda())
+            img_train_sup = Variable(sup_index['image'][tio.DATA].cuda())
             mask_train_sup = Variable(sup_index['mask'][tio.DATA].squeeze(1).long().cuda())
+            name_train = sup_index['ID']
+            affine_train = sup_index['image']['affine']
 
-            pred_train_sup1, pred_train_sup2, pred_train_sup3, pred_train_sup4 = model1(img_train_sup_1)
+            pred_train_sup1, pred_train_sup2, pred_train_sup3, pred_train_sup4 = model(img_train_sup)
 
             if count_iter % args.display_iter == 0:
                 if i == 0:
-                    score_list_train1 = pred_train_sup1
+                    score_list_train = pred_train_sup1
                     mask_list_train = mask_train_sup
-                # else:
-                elif 0 < i <= num_batches['train_sup'] / 32:
-                    score_list_train1 = torch.cat((score_list_train1, pred_train_sup1), dim=0)
+                    name_list_train = name_train
+                    affine_list_train = affine_train
+                else:
+                    score_list_train = torch.cat((score_list_train, pred_train_sup1), dim=0)
                     mask_list_train = torch.cat((mask_list_train, mask_train_sup), dim=0)
+                    name_list_train = np.append(name_list_train, name_train, axis=0)
+                    affine_list_train = torch.cat((affine_list_train, affine_train), dim=0)
 
-            loss_train_sup1 = (criterion(pred_train_sup1, mask_train_sup)+criterion(pred_train_sup2, mask_train_sup)+criterion(pred_train_sup3, mask_train_sup)+criterion(pred_train_sup4, mask_train_sup)) / 4
+            loss_train_sup1 = (criterion(pred_train_sup1, mask_train_sup) + criterion(pred_train_sup2, mask_train_sup) + criterion(pred_train_sup3, mask_train_sup) + criterion(pred_train_sup4, mask_train_sup)) / 4
             loss_train_sup = loss_train_sup1
-
             loss_train_sup.backward()
-            optimizer1.step()
-            torch.cuda.empty_cache()
+
+            optimizer.step()
 
             loss_train = loss_train_unsup + loss_train_sup
             train_loss_unsup += loss_train_unsup.item()
-            train_loss_sup_1 += loss_train_sup1.item()
+            train_loss_sup += loss_train_sup1.item()
             train_loss += loss_train.item()
 
-        scheduler_warmup1.step()
-        torch.cuda.empty_cache()
+        scheduler_warmup.step()
 
         if count_iter % args.display_iter == 0:
-
-            # score_gather_list_train1 = [torch.zeros_like(score_list_train1) for _ in range(ngpus_per_node)]
-            # torch.distributed.all_gather(score_gather_list_train1, score_list_train1)
-            # score_list_train1 = torch.cat(score_gather_list_train1, dim=0)
-
-            # mask_gather_list_train = [torch.zeros_like(mask_list_train) for _ in range(ngpus_per_node)]
-            # torch.distributed.all_gather(mask_gather_list_train, mask_list_train)
-            # mask_list_train = torch.cat(mask_gather_list_train, dim=0)
-
-            #if rank == args.rank_index:
-            torch.cuda.empty_cache()
             print('=' * print_num)
             print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
-            train_epoch_loss_sup_1, train_epoch_loss_cps, train_epoch_loss = print_train_loss_EM(train_loss_sup_1, train_loss_unsup, train_loss, num_batches, print_num, print_num_minus)
-            train_eval_list_1, train_m_jc_1 = print_train_eval_sup(cfg['NUM_CLASSES'], score_list_train1, mask_list_train, print_num_minus)
-            torch.cuda.empty_cache()
+            train_epoch_loss_sup, train_epoch_loss_unsup, train_epoch_loss = compute_epoch_loss_EM(train_loss_sup, train_loss_unsup, train_loss, num_batches, print_num, print_num_minus)
+            train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus)
+            if args.debug:
+                ext = name_list_train[0].rsplit(".", 1)[1]
+                name_list_train = [name.rsplit(".", 1)[0] for name in name_list_train]
+                name_list_train = [a if not (s:=sum(j == a for j in name_list_train[:i])) else f'{a}-{s+1}'
+                    for i, a in enumerate(name_list_train)]
+                name_list_train = [name + ".{}".format(ext) for name in name_list_train]
+                save_preds_3d(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, affine_list_train)
+
+            # saving metrics to tensorboard writer
+            writer.add_scalar('train/segm_loss', train_epoch_loss_sup, count_iter)
+            writer.add_scalar('train/unsup_loss', train_epoch_loss_unsup, count_iter)
+            writer.add_scalar('train/total_loss', train_epoch_loss, count_iter)
+            writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], count_iter)
+            writer.add_scalar('train/DC', train_eval_list[2], count_iter)
+            writer.add_scalar('train/JI', train_eval_list[1], count_iter)
+            writer.add_scalar('train/thresh', train_eval_list[0], count_iter)
+            writer.add_scalar('train/lambda_unsup', unsup_weight, count_iter)
+
+            # saving metrics to list
+            train_metrics.append({
+                'epoch': count_iter,
+                'segm/loss': train_epoch_loss_sup,
+                'segm/unsup_loss': train_epoch_loss_unsup,
+                'segm/total_loss': train_epoch_loss,
+                'segm/dice': train_eval_list[2],
+                'segm/jaccard': train_eval_list[1],
+                'lr': optimizer.param_groups[0]['lr'],
+                'thresh': train_eval_list[0],
+            })
+
+        if count_iter % args.validate_iter == 0:
+            metrics_debug = []
 
             with torch.no_grad():
-                model1.eval()
+                model.eval()
 
                 for i, data in enumerate(dataloaders['val']):
-
-                    # if 0 <= i <= num_batches['val']:
-
-                    inputs_val_1 = Variable(data['image'][tio.DATA].cuda())
+                    inputs_val = Variable(data['image'][tio.DATA].cuda())
                     mask_val = Variable(data['mask'][tio.DATA].squeeze(1).long().cuda())
+                    name_val = data['ID']
+                    affine_val = data['image']['affine']
 
-                    optimizer1.zero_grad()
-                    outputs_val_1, outputs_val_2, outputs_val_3, outputs_val_4 = model1(inputs_val_1)
-                    torch.cuda.empty_cache()
+                    optimizer.zero_grad()
+                    outputs_val1, outputs_val2, outputs_val3, outputs_val4 = model(inputs_val)
+
+                    loss_val = criterion(outputs_val1, mask_val)
+                    val_loss += loss_val.item()
 
                     if i == 0:
-                        score_list_val_1 = outputs_val_1
+                        score_list_val = outputs_val1
                         mask_list_val = mask_val
+                        name_list_val = name_val
+                        affine_list_val = affine_val
                     else:
-                        score_list_val_1 = torch.cat((score_list_val_1, outputs_val_1), dim=0)
+                        score_list_val = torch.cat((score_list_val, outputs_val1), dim=0)
                         mask_list_val = torch.cat((mask_list_val, mask_val), dim=0)
+                        name_list_val = np.append(name_list_val, name_val, axis=0)
+                        affine_list_val = torch.cat((affine_list_val, affine_val), dim=0)
 
-                    loss_val_sup_1 = criterion(outputs_val_1, mask_val)
-                    val_loss_sup_1 += loss_val_sup_1.item()
+                    # TODO save val metrics for single images
+                    if args.debug:
+                        pass
 
-                torch.cuda.empty_cache()
-                # score_gather_list_val_1 = [torch.zeros_like(score_list_val_1) for _ in range(ngpus_per_node)]
-                # torch.distributed.all_gather(score_gather_list_val_1, score_list_val_1)
-                # score_list_val_1 = torch.cat(score_gather_list_val_1, dim=0)
+                # TODO save val metrics for single images
+                if args.debug:
+                    pass
 
-                # mask_gather_list_val = [torch.zeros_like(mask_list_val) for _ in range(ngpus_per_node)]
-                # torch.distributed.all_gather(mask_gather_list_val, mask_list_val)
-                # mask_list_val = torch.cat(mask_gather_list_val, dim=0)
-                torch.cuda.empty_cache()
+                val_epoch_loss = compute_epoch_loss(val_loss, num_batches, print_num, print_num_minus, train=False)
+                val_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_val, mask_list_val, print_num_minus, train=False)
 
-                #if rank == args.rank_index:
-                val_epoch_loss_sup_1 = print_val_loss_sup(val_loss_sup_1, num_batches, print_num, print_num_minus)
-                val_eval_list_1, val_m_jc_1 = print_val_eval_sup(cfg['NUM_CLASSES'], score_list_val_1, mask_list_val, print_num_minus)
-                best_val_eval_list = save_val_best_sup_3d(cfg['NUM_CLASSES'], best_val_eval_list, model1, score_list_val_1, mask_list_val, val_eval_list_1, path_trained_models, path_seg_results, path_mask_results, 'URPC', cfg['FORMAT'])
-                torch.cuda.empty_cache()
+                # check if best model (in terms of JI) and eventually save it
+                if best_val_eval_list[1] < val_eval_list[1]:
+                    best_val_eval_list = val_eval_list
+                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=exclude_layer_names)
+                    # save val best preds
 
-                if args.vis:
-                    visualization_EM(visdom, epoch + 1, train_epoch_loss, train_epoch_loss_sup_1, train_epoch_loss_cps, train_m_jc_1, val_epoch_loss_sup_1, val_m_jc_1)
+                # check if best model (in terms of JI) and eventually save it
+                if best_val_eval_list[1] < val_eval_list[1]:
+                    best_val_eval_list = val_eval_list
+                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=exclude_layer_names)
+                    # save val best preds
+                    ext = name_list_val[0].rsplit(".", 1)[1]
+                    name_list_val = [name.rsplit(".", 1)[0] for name in name_list_val]
+                    name_list_val = [a if not (s:=sum(j == a for j in name_list_val[:i])) else f'{a}-{s+1}'
+                        for i, a in enumerate(name_list_val)]
+                    name_list_val = [name + ".{}".format(ext) for name in name_list_val]
+                    save_preds_3d(score_list_val, best_val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val)
+
+                # saving metrics to tensorboard writer
+                writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
+                writer.add_scalar('val/DC', val_eval_list[2], count_iter)
+                writer.add_scalar('val/JI', val_eval_list[1], count_iter)
+                writer.add_scalar('val/thresh', val_eval_list[0], count_iter)
+
+                # saving metrics to list
+                val_metrics.append({
+                    'epoch': count_iter,
+                    'segm/loss': val_epoch_loss,
+                    'segm/dice': val_eval_list[2],
+                    'segm/jaccard': val_eval_list[1],
+                    'thresh': val_eval_list[0],
+                })
 
                 print('-' * print_num)
                 print('| Epoch Time: {:.4f}s'.format((time.time() - begin_time) / args.display_iter).ljust(print_num_minus, ' '), '|')
-            torch.cuda.empty_cache()
-        torch.cuda.empty_cache()
 
-    #if rank == args.rank_index:
+    # save val last preds
+    ext = name_list_val[0].rsplit(".", 1)[1]
+    name_list_val = [name.rsplit(".", 1)[0] for name in name_list_val]
+    name_list_val = [a if not (s:=sum(j == a for j in name_list_val[:i])) else f'{a}-{s+1}'
+        for i, a in enumerate(name_list_val)]
+    name_list_val = [name + ".{}".format(ext) for name in name_list_val]
+    save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val)
+
+    # save last model
+    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False, hebb_params=hebb_params, layers_excluded=exclude_layer_names)
+
+    # save train and val metrics in csv file
+    train_metrics = pd.DataFrame(train_metrics)
+    train_metrics.to_csv(os.path.join(path_run, 'train_log.csv'), index=False)
+    val_metrics = pd.DataFrame(val_metrics)
+    val_metrics.to_csv(os.path.join(path_run, 'val_log.csv'), index=False)
+
+    time_elapsed = time.time() - since
+    m, s = divmod(time_elapsed, 60)
+    h, m = divmod(m, 60)
+
     time_elapsed = time.time() - since
     m, s = divmod(time_elapsed, 60)
     h, m = divmod(m, 60)
@@ -385,5 +444,5 @@ if __name__ == '__main__':
     print('=' * print_num)
     print('| Training Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
     print('-' * print_num)
-    print_best_sup(cfg['NUM_CLASSES'], best_val_eval_list, print_num_minus)
+    print_best_val_metrics(cfg['NUM_CLASSES'], best_val_eval_list, print_num_minus)
     print('=' * print_num)

@@ -6,6 +6,7 @@ import pandas as pd
 import json
 
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torch.autograd import Variable
@@ -23,7 +24,7 @@ from dataload.dataset_3d import dataset_it
 from hebb.makehebbian import makehebbian
 from models.networks_3d.unet3d import init_weights as init_weights_unet3d
 from models.networks_3d.vnet import init_weights as init_weights_vnet
-from utils import save_snapshot, init_seeds, print_best_val_metrics, save_preds_3d, compute_val_epoch_loss_MT, evaluate_val_MT, compute_epoch_loss_XNet, evaluate_XNet
+from utils import save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, save_preds_3d, compute_epoch_loss_EM
 
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)

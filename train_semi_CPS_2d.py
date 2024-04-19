@@ -171,6 +171,7 @@ if __name__ == '__main__':
         exclude = state_dict['excluded_layers']
         model1 = makehebbian(model1, exclude=exclude, hebb_params=hebb_params)
         model1.load_state_dict(state_dict['model'])
+        model2 = makehebbian(model2, exclude=exclude, hebb_params=hebb_params)
 
         exclude_layer_names = exclude
         if exclude is None: exclude = []

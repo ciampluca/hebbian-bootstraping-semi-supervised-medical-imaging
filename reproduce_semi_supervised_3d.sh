@@ -17,6 +17,7 @@ VALIDATE_ITER=1
 
 NETWORKS=(
     unet3d
+    vnet
 )
 
 DATASETS=(

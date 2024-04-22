@@ -251,7 +251,7 @@ if __name__ == '__main__':
                     mask_list_train = torch.cat((mask_list_train, mask_train_sup), dim=0)
                     name_list_train = np.append(name_list_train, name_train, axis=0)
 
-            loss_train_sup = criterion(pred_train_sup, mask_train_sup) + entropy_loss(pred_train_sup_soft, C=2)
+            loss_train_sup = criterion(pred_train_sup, mask_train_sup) #+ entropy_loss(pred_train_sup_soft, C=2)
 
             loss_train_sup = loss_train_sup
             loss_train_sup.backward()

@@ -39,6 +39,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--network', default='unet3d')
     parser.add_argument('--hebbian_pretrain', default=False)
     parser.add_argument('--fill_hole_thr', default=500, help='300-500')
+    parser.add_argument('--postprocessing', default=False)
 
     args = parser.parse_args()
 
@@ -125,23 +126,25 @@ if __name__ == '__main__':
     print('| Testing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
     print('=' * print_num)
 
-    # pred post-processing
-    print('-' * print_num)
-    print('| Starting Preds Post-Processing'.ljust(print_num_minus, ' '), '|')
-    print('=' * print_num)
-    since = time.time()
+    path_seg_postprocessed_results = path_seg_results
+    if args.postprocessing:
+        # pred post-processing
+        print('-' * print_num)
+        print('| Starting Preds Post-Processing'.ljust(print_num_minus, ' '), '|')
+        print('=' * print_num)
+        since = time.time()
 
-    path_seg_postprocessed_results = os.path.join(os.path.join(args.path_exp, "test_seg_preds_postprocessed"))
-    if not os.path.exists(path_seg_postprocessed_results):
-        os.makedirs(path_seg_postprocessed_results)
-    postprocess_3d_pred(args.dataset_name, path_seg_results, path_seg_postprocessed_results, args.fill_hole_thr)
+        path_seg_postprocessed_results = os.path.join(os.path.join(args.path_exp, "test_seg_preds_postprocessed"))
+        if not os.path.exists(path_seg_postprocessed_results):
+            os.makedirs(path_seg_postprocessed_results)
+        postprocess_3d_pred(args.dataset_name, path_seg_results, path_seg_postprocessed_results, args.fill_hole_thr)
 
-    time_elapsed = time.time() - since
-    m, s = divmod(time_elapsed, 60)
-    h, m = divmod(m, 60)
-    print('-' * print_num)
-    print('| Preds Post-Processing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
-    print('=' * print_num)
+        time_elapsed = time.time() - since
+        m, s = divmod(time_elapsed, 60)
+        h, m = divmod(m, 60)
+        print('-' * print_num)
+        print('| Preds Post-Processing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
+        print('=' * print_num)
 
     # evaluation
     print('-' * print_num)

@@ -388,6 +388,7 @@ if __name__ == '__main__':
                         affine_list_val = affine_val
                     else:
                         score_list_val1 = torch.cat((score_list_val1, outputs_val1), dim=0)
+                        score_list_val2 = torch.cat((score_list_val2, outputs_val2), dim=0)
                         mask_list_val = torch.cat((mask_list_val, mask_val), dim=0)
                         name_list_val = np.append(name_list_val, name_val, axis=0)
                         affine_list_val = torch.cat((affine_list_val, affine_val), dim=0)

@@ -4,6 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 import json
+import sys
 
 import torch
 import torch.nn as nn
@@ -22,8 +23,8 @@ from models.getnetwork import get_network
 from dataload.dataset_3d import dataset_it
 
 from hebb.makehebbian import makehebbian
-from models.networks_3d.unet3d import init_weights as init_weights_unet3d
-from models.networks_3d.vnet import init_weights as init_weights_vnet
+from models.networks_3d.unet3d_urpc import init_weights as init_weights_unet3d
+#from models.networks_3d.vnet_urpc import init_weights as init_weights_vnet
 from utils import save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, save_preds_3d, compute_epoch_loss_EM
 
 from warnings import simplefilter
@@ -67,7 +68,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-     # set cuda device
+    # set cuda device
     torch.cuda.set_device(args.device)
     init_seeds(args.seed)
 
@@ -83,7 +84,15 @@ if __name__ == '__main__':
         args.patch_size = eval(args.patch_size)
 
     # create folders
-    net_name = "unet" if args.network == "unet_urpc" else args.network
+    net_name = args.network
+    if args.network == "unet_urpc":
+        net_name = "unet"
+    elif args.network == "vnet_urpc":
+        # TODO
+        net_name = "vnet"
+        print("Still not implemented")
+        sys.exit(1)
+
     if args.regime < 100:
         if args.load_hebbian_weights:
             path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_urpc_{}_{}".format(net_name, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
@@ -188,7 +197,9 @@ if __name__ == '__main__':
         if args.network == 'unet3d':
             init_weights = init_weights_unet3d
         elif args.network == 'vnet':
-            init_weights = init_weights_vnet
+            # TODO
+            print("Still not implemented")
+            #init_weights = init_weights_vnet
         for m in exclude:
             init_weights(m, init_type='kaiming')
 

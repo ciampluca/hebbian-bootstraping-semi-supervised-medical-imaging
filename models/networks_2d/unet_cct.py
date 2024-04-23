@@ -192,20 +192,77 @@ class UNet_CCT(nn.Module):
                   'bilinear': False,
                   'acti_func': 'relu'}
         self.encoder = Encoder(params)
-        self.main_decoder = Decoder(params)
-        self.aux_decoder1 = Decoder(params)
-        self.aux_decoder2 = Decoder(params)
-        self.aux_decoder3 = Decoder(params)
+        #self.main_decoder = Decoder(params)
+        #self.aux_decoder1 = Decoder(params)
+        #self.aux_decoder2 = Decoder(params)
+        #self.aux_decoder3 = Decoder(params)
+
+        self.up1 = UpBlock(
+            params['feature_chns'][4], params['feature_chns'][3], params['feature_chns'][3], dropout_p=0.0)
+        self.up2 = UpBlock(
+            params['feature_chns'][3], params['feature_chns'][2], params['feature_chns'][2], dropout_p=0.0)
+        self.up3 = UpBlock(
+            params['feature_chns'][2], params['feature_chns'][1], params['feature_chns'][1], dropout_p=0.0)
+        self.up4 = UpBlock(
+            params['feature_chns'][1], params['feature_chns'][0], params['feature_chns'][0], dropout_p=0.0)
+
+        self.out_conv = nn.Conv2d(params['feature_chns'][0], class_num,
+                                  kernel_size=3, padding=1)
 
     def forward(self, x):
         feature = self.encoder(x)
-        main_seg = self.main_decoder(feature)
+
+        # main_seg = self.main_decoder(feature)
+        x0 = feature[0]
+        x1 = feature[1]
+        x2 = feature[2]
+        x3 = feature[3]
+        x4 = feature[4]
+        x = self.up1(x4, x3)
+        x = self.up2(x, x2)
+        x = self.up3(x, x1)
+        x = self.up4(x, x0)
+        main_seg = self.out_conv(x)
+        
         aux1_feature = [FeatureNoise()(i) for i in feature]
-        aux_seg1 = self.aux_decoder1(aux1_feature)
+        #aux_seg1 = self.aux_decoder1(aux1_feature)
+        x0 = aux1_feature[0]
+        x1 = aux1_feature[1]
+        x2 = aux1_feature[2]
+        x3 = aux1_feature[3]
+        x4 = aux1_feature[4]
+        x = self.up1(x4, x3)
+        x = self.up2(x, x2)
+        x = self.up3(x, x1)
+        x = self.up4(x, x0)
+        aux_seg1 = self.out_conv(x)
+
         aux2_feature = [Dropout(i) for i in feature]
-        aux_seg2 = self.aux_decoder2(aux2_feature)
+        #aux_seg2 = self.aux_decoder2(aux2_feature)
+        x0 = aux2_feature[0]
+        x1 = aux2_feature[1]
+        x2 = aux2_feature[2]
+        x3 = aux2_feature[3]
+        x4 = aux2_feature[4]
+        x = self.up1(x4, x3)
+        x = self.up2(x, x2)
+        x = self.up3(x, x1)
+        x = self.up4(x, x0)
+        aux_seg2 = self.out_conv(x)
+
         aux3_feature = [FeatureDropout(i) for i in feature]
-        aux_seg3 = self.aux_decoder3(aux3_feature)
+        #aux_seg3 = self.aux_decoder3(aux3_feature)
+        x0 = aux3_feature[0]
+        x1 = aux3_feature[1]
+        x2 = aux3_feature[2]
+        x3 = aux3_feature[3]
+        x4 = aux3_feature[4]
+        x = self.up1(x4, x3)
+        x = self.up2(x, x2)
+        x = self.up3(x, x1)
+        x = self.up4(x, x0)
+        aux_seg3 = self.out_conv(x)
+
         return main_seg, aux_seg1, aux_seg2, aux_seg3
 
 def unet_cct(in_channels, num_classes):

@@ -112,7 +112,10 @@ if __name__ == '__main__':
                 inputs_test = Variable(data['image'][tio.DATA].cuda())
                 location_test = data[tio.LOCATION]
 
-                outputs_test = model(inputs_test)
+                if args.network == "unet3d_urpc" or args.network == "unet3d_cct" or args.network == "vnet_urpc" or args.network == "vnet_cct":
+                    outputs_test, _, _, _ = model(inputs_test)
+                else:
+                    outputs_test = model(inputs_test)
 
                 aggregator.add_batch(outputs_test, location_test)
 

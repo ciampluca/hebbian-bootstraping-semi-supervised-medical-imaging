@@ -183,9 +183,13 @@ if __name__ == '__main__':
             affine_train = data['image']['affine']
 
             optimizer.zero_grad()
-            outputs_train = model(inputs_train)
 
-            loss_train = criterion(outputs_train, mask_train)
+            if args.network == "unet3d_urpc" or args.network == "unet3d_cct" or args.network == "vnet_urpc" or args.network == "vnet_cct": 
+                outputs_train, outputs_train2, outputs_train3, outputs_train4 = model(inputs_train)
+                loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4
+            else:
+                outputs_train = model(inputs_train)
+                loss_train = criterion(outputs_train, mask_train)
 
             loss_train.backward()
 
@@ -255,7 +259,11 @@ if __name__ == '__main__':
                     affine_val = data['image']['affine']
 
                     optimizer.zero_grad()
-                    outputs_val = model(inputs_val)
+
+                    if args.network == "unet3d_urpc" or args.network == "unet3d_cct" or args.network == "vnet_urpc" or args.network == "vnet_cct":
+                        outputs_val, _, _, _ = model(inputs_val)
+                    else:
+                        outputs_val = model(inputs_val)
 
                     loss_val = criterion(outputs_val, mask_val)
                     val_loss += loss_val.item()

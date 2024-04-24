@@ -182,12 +182,9 @@ if __name__ == '__main__':
 
             if args.network == "unet_urpc" or args.network == "unet_cct":
                 outputs_train, outputs_train2, outputs_train3, outputs_train4 = model(inputs_train)
+                loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4                
             else:
                 outputs_train = model(inputs_train)
-
-            if args.network == "unet_urpc" or args.network == "unet_cct": 
-                loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4
-            else:
                 loss_train = criterion(outputs_train, mask_train)
 
             loss_train.backward()

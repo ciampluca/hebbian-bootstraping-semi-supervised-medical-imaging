@@ -16,13 +16,13 @@ import torchio as tio
 from config.dataset_config.dataset_cfg import dataset_cfg
 from config.warmup_config.warmup import GradualWarmupScheduler
 from config.augmentation.online_aug import data_transform_3d
-from loss.loss_function import segmentation_loss, entropy_loss
+from loss.loss_function import segmentation_loss
 from models.getnetwork import get_network
-from dataload.dataset_3d import dataset_it
+from dataload.dataset_3d import dataset_it_dtc
 
 from hebb.makehebbian import makehebbian
-from models.networks_3d.unet3d import init_weights as init_weights_unet3d
-from models.networks_3d.vnet import init_weights as init_weights_vnet
+from models.networks_3d.unet3d_dtc import init_weights as init_weights_unet3d
+from models.networks_3d.vnet_dtc import init_weights as init_weights_vnet
 from utils import save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, save_preds_3d, compute_epoch_loss_EM
 
 from warnings import simplefilter
@@ -52,18 +52,19 @@ if __name__ == '__main__':
     parser.add_argument('--wd', default=-5, type=float, help='weight decay pow')
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('-c', '--unsup_weight', default=50, type=float)
+    parser.add_argument('--beta', default=0.3, type=float)
     parser.add_argument('-i', '--display_iter', default=1, type=int)
     parser.add_argument('--validate_iter', default=2, type=int)
     parser.add_argument('--queue_length', default=48, type=int)
     parser.add_argument('--samples_per_volume_train', default=4, type=int)
     parser.add_argument('--samples_per_volume_val', default=8, type=int)
-    parser.add_argument('-n', '--network', default='unet3d', type=str)
+    parser.add_argument('-n', '--network', default='unet3d_dtc', type=str)
     parser.add_argument('--debug', default=True)
 
     parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
     parser.add_argument('--hebbian-rule', default='swta_t', type=str, help='hebbian rules to be used')
     parser.add_argument('--hebb_inv_temp', default=1, type=int, help='hebbian temp')
-    
+
     args = parser.parse_args()
 
      # set cuda device
@@ -81,13 +82,19 @@ if __name__ == '__main__':
         args.patch_size = eval(args.patch_size)
 
      # create folders
+    net_name = args.network
+    if args.network == "unet3d_dtc":
+        net_name = "unet"
+    elif args.network == "vnet_dtc":
+        net_name = "vnet"
+
     if args.regime < 100:
         if args.load_hebbian_weights:
-            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_em_{}_{}".format(args.network, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_dtc_{}_{}".format(net_name, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
         else:
-            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "em_{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "dtc_{}".format(net_name), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     else:
-        path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "fully_sup", "em_{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+        path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "fully_sup", "dtc_{}".format(net_name), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     if not os.path.exists(path_run):
         os.makedirs(path_run)
     path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))
@@ -114,7 +121,7 @@ if __name__ == '__main__':
     # data loading
     data_transform = data_transform_3d(cfg['NORMALIZE'])
 
-    dataset_train_sup = dataset_it(
+    dataset_train_sup = dataset_it_dtc(
         data_dir=args.path_dataset + '/train',
         input1=args.input1,
         transform_1=data_transform['train'],
@@ -128,7 +135,7 @@ if __name__ == '__main__':
         regime=args.regime,
         seed=args.seed,
     )
-    dataset_train_unsup = dataset_it(
+    dataset_train_unsup = dataset_it_dtc(
         data_dir=args.path_dataset + '/train',
         input1=args.input1,
         transform_1=data_transform['train'],
@@ -142,7 +149,7 @@ if __name__ == '__main__':
         regime=args.regime,
         seed=args.seed,
     )
-    dataset_val = dataset_it(
+    dataset_val = dataset_it_dtc(
         data_dir=args.path_dataset + '/val',
         input1=args.input1,
         transform_1=data_transform['val'],
@@ -195,6 +202,7 @@ if __name__ == '__main__':
 
     # define criterion, optimizer, and scheduler
     criterion = segmentation_loss(args.loss, False).cuda()
+    mseloss = torch.nn.MSELoss().cuda()
 
     if args.optimizer == "adam":
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -236,10 +244,12 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
 
-            pred_train_unsup = model(img_train_unsup)
-            pred_train_unsup = torch.softmax(pred_train_unsup, 1)
+            pred_train_unsup_sdf, pred_train_unsup_seg = model(img_train_unsup)
 
-            loss_train_unsup = entropy_loss(pred_train_unsup, C=2)
+            pred_train_unsup_seg_soft = torch.sigmoid(pred_train_unsup_seg)
+            dis_to_mask = torch.sigmoid(-1500 * pred_train_unsup_sdf)
+
+            loss_train_unsup = torch.mean((dis_to_mask - pred_train_unsup_seg_soft) ** 2)
             loss_train_unsup = loss_train_unsup * unsup_weight
             loss_train_unsup.backward(retain_graph=True)
             torch.cuda.empty_cache()
@@ -249,25 +259,31 @@ if __name__ == '__main__':
             mask_train_sup = Variable(sup_index['mask'][tio.DATA].squeeze(1).long().cuda())
             name_train = sup_index['ID']
             affine_train = sup_index['image']['affine']
+            mask_train_sup_sdf1 = Variable(sup_index['mask2'][tio.DATA].squeeze(1).float().cuda())
+            if cfg['NUM_CLASSES'] == 3:
+                mask_train_sup_sdf2 = Variable(sup_index['mask3'][tio.DATA].squeeze(1).float().cuda())
 
-            pred_train_sup = model(img_train_sup)
-            pred_train_sup_soft = torch.softmax(pred_train_sup, 1)
+            pred_train_sup_sdf, pred_train_sup_seg = model(img_train_sup)
 
             if count_iter % args.display_iter == 0:
                 if i == 0:
-                    score_list_train = pred_train_sup
+                    score_list_train = pred_train_sup_seg
                     mask_list_train = mask_train_sup
                     name_list_train = name_train
                     affine_list_train = affine_train
                 else:
-                    score_list_train = torch.cat((score_list_train, pred_train_sup), dim=0)
+                    score_list_train = torch.cat((score_list_train, pred_train_sup_seg), dim=0)
                     mask_list_train = torch.cat((mask_list_train, mask_train_sup), dim=0)
                     name_list_train = np.append(name_list_train, name_train, axis=0)
                     affine_list_train = torch.cat((affine_list_train, affine_train), dim=0)
 
-            loss_train_sup = criterion(pred_train_sup, mask_train_sup) #+ entropy_loss(pred_train_sup_soft, C=2)
-            
-            loss_train_sup = loss_train_sup
+            if cfg['NUM_CLASSES'] == 3:
+                loss_train_sdf = mseloss(pred_train_sup_sdf[:, 1, ...], mask_train_sup_sdf1) + mseloss(pred_train_sup_sdf[:, 2, ...], mask_train_sup_sdf2)
+            else:
+                loss_train_sdf = mseloss(pred_train_sup_sdf[:, 1, ...], mask_train_sup_sdf1)
+            loss_train_seg = criterion(pred_train_sup_seg, mask_train_sup)
+            loss_train_sup = loss_train_seg + args.beta * loss_train_sdf
+
             loss_train_sup.backward()
 
             optimizer.step()
@@ -327,18 +343,18 @@ if __name__ == '__main__':
                     affine_val = data['image']['affine']
 
                     optimizer.zero_grad()
-                    outputs_val = model(inputs_val)
+                    outputs_val_sdf, outputs_val_seg = model(inputs_val)
 
-                    loss_val = criterion(outputs_val, mask_val)
-                    val_loss += loss_val.item()
-                    
+                    loss_val_sup = criterion(outputs_val_seg, mask_val)
+                    val_loss += loss_val_sup.item()
+
                     if i == 0:
-                        score_list_val = outputs_val
+                        score_list_val = outputs_val_seg
                         mask_list_val = mask_val
                         name_list_val = name_val
                         affine_list_val = affine_val
                     else:
-                        score_list_val = torch.cat((score_list_val, outputs_val), dim=0)
+                        score_list_val = torch.cat((score_list_val, outputs_val_seg), dim=0)
                         mask_list_val = torch.cat((mask_list_val, mask_val), dim=0)
                         name_list_val = np.append(name_list_val, name_val, axis=0)
                         affine_list_val = torch.cat((affine_list_val, affine_val), dim=0)
@@ -359,12 +375,18 @@ if __name__ == '__main__':
                     best_val_eval_list = val_eval_list
                     save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=exclude_layer_names)
                     # save val best preds
+
+                # check if best model (in terms of JI) and eventually save it
+                if best_val_eval_list[1] < val_eval_list[1]:
+                    best_val_eval_list = val_eval_list
+                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=exclude_layer_names)
+                    # save val best preds
                     ext = name_list_val[0].rsplit(".", 1)[1]
                     name_list_val = [name.rsplit(".", 1)[0] for name in name_list_val]
                     name_list_val = [a if not (s:=sum(j == a for j in name_list_val[:i])) else f'{a}-{s+1}'
                         for i, a in enumerate(name_list_val)]
                     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
-                    save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val)
+                    save_preds_3d(score_list_val, best_val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val)
 
                 # saving metrics to tensorboard writer
                 writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
@@ -414,3 +436,8 @@ if __name__ == '__main__':
     print('-' * print_num)
     print_best_val_metrics(cfg['NUM_CLASSES'], best_val_eval_list, print_num_minus)
     print('=' * print_num)
+
+
+
+
+

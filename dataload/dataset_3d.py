@@ -58,7 +58,7 @@ class dataset_it(Dataset):
 
 
 class dataset_it_dtc(Dataset):
-    def __init__(self, data_dir, input1, num_classes, transform_1, queue_length=20, samples_per_volume=5, patch_size=128, num_workers=8, shuffle_subjects=True, shuffle_patches=True, sup=True, num_images=None):
+    def __init__(self, data_dir, input1, num_classes, transform_1, queue_length=20, samples_per_volume=5, patch_size=128, num_workers=8, shuffle_subjects=True, shuffle_patches=True, sup=True, regime=100, seed=0,):
         super(dataset_it_dtc, self).__init__()
 
         self.subjects_1 = []
@@ -75,6 +75,7 @@ class dataset_it_dtc(Dataset):
             if sup:
                 mask_path_1 = os.path.join(mask_dir_1, i)
                 mask_path_2 = os.path.join(mask_dir_2, i)
+                # TODO controllare per mask2 e mask3 se vanno messi i pixel a 0-1
                 if num_classes == 3:
                     mask_path_3 = os.path.join(mask_dir_3, i)
                     subject_1 = tio.Subject(
@@ -96,19 +97,15 @@ class dataset_it_dtc(Dataset):
 
             self.subjects_1.append(subject_1)
 
-        if num_images is not None:
+        if regime < 100:
             len_img_paths = len(self.subjects_1)
-            quotient = num_images // len_img_paths
-            remainder = num_images % len_img_paths
+            num_images = math.ceil((len_img_paths / 100) * regime)
 
-            if num_images <= len_img_paths:
+            random.Random(seed).shuffle(self.subjects_1)
+            if sup:
                 self.subjects_1 = self.subjects_1[:num_images]
             else:
-                rand_indices = torch.randperm(len_img_paths).tolist()
-                new_indices = rand_indices[:remainder]
-
-                self.subjects_1 = self.subjects_1 * quotient
-                self.subjects_1 += [self.subjects_1[i] for i in new_indices]
+                self.subjects_1 = self.subjects_1[num_images:]
 
         self.dataset_1 = tio.SubjectsDataset(self.subjects_1, transform=transform_1)
 

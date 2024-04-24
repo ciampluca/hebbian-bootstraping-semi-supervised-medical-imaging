@@ -107,7 +107,7 @@ if __name__ == '__main__':
                 mask_test = data['mask']
                 mask_test = Variable(mask_test.cuda(non_blocking=True))
 
-            if args.network == "unet_urpc":
+            if args.network == "unet_urpc" or args.network == "unet_cct":
                 outputs_test, _, _, _ = model(inputs_test)
             else:
                 outputs_test = model(inputs_test)

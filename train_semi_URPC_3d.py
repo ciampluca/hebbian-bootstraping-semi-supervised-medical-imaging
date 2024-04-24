@@ -85,7 +85,7 @@ if __name__ == '__main__':
 
     # create folders
     net_name = args.network
-    if args.network == "unet_urpc":
+    if args.network == "unet3d_urpc":
         net_name = "unet"
     elif args.network == "vnet_urpc":
         # TODO

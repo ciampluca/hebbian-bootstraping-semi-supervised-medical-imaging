@@ -4,7 +4,7 @@
 
 set -e
 
-REPS=10
+REPS=5
 START_REP=0  
 GPU=0
 
@@ -54,6 +54,8 @@ for DATASET in ${DATASETS[@]}; do
                 python test_3d.py --dataset_name $DATASET --network $NETWORK"_urpc" --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/semi_sup/urpc_$NETWORK/inv_temp-1/regime-$REGIME/run-$REP --patch_size "(96, 96, 80)" --patch_overlap "(48, 48, 20)" --device $GPU                
                 python train_semi_CCT_3d.py --dataset_name $DATASET --network $NETWORK"_cct" --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --regime $REGIME --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed $REP --validate_iter $VALIDATE_ITER --device $GPU --lr $LR --loss dice --patch_size "(96, 96, 80)" --unsup_weight $UNSUP_WEIGHT
                 python test_3d.py --dataset_name $DATASET --network $NETWORK"_cct" --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/semi_sup/cct_$NETWORK/inv_temp-1/regime-$REGIME/run-$REP --patch_size "(96, 96, 80)" --patch_overlap "(48, 48, 20)" --device $GPU             
+                python train_semi_DTC_3d.py --dataset_name $DATASET --network $NETWORK"_dtc" --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --regime $REGIME --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed $REP --validate_iter $VALIDATE_ITER --device $GPU --lr $LR --loss dice --patch_size "(96, 96, 80)" --unsup_weight $UNSUP_WEIGHT
+                python test_3d.py --dataset_name $DATASET --network $NETWORK"_dtc" --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/semi_sup/dtc_$NETWORK/inv_temp-1/regime-$REGIME/run-$REP --patch_size "(96, 96, 80)" --patch_overlap "(48, 48, 20)" --device $GPU             
             done
         done
     done

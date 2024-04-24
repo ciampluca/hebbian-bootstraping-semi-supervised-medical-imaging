@@ -147,7 +147,7 @@ if __name__ == '__main__':
     num_batches = {'train_sup': len(dataloaders['train']), 'val': len(dataloaders['val'])}
 
     # create model
-    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], img_shape=args.patch_size)
+    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
 
     # eventually load hebbian weights
     hebb_params, exclude, exclude_layer_names = None, None, None

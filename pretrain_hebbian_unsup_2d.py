@@ -43,7 +43,6 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--lr', default=0.5, type=float)
     parser.add_argument('-g', '--gamma', default=0.5, type=float)
     parser.add_argument('--loss', default='dice', type=str)
-    parser.add_argument('-ds', '--deep_supervision', default=False)
     parser.add_argument('-w', '--warm_up_duration', default=20)
     parser.add_argument('--momentum', default=0.9, type=float)
     parser.add_argument('--wd', default=-5, type=float, help='weight decay pow')
@@ -181,17 +180,13 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
 
-            if args.network == "unet_urpc":
-                outputs_train, _, _, _ = model(inputs_train)
+            if args.network == "unet_urpc" or args.network == "unet_cct":
+                outputs_train, outputs_train2, outputs_train3, outputs_train4 = model(inputs_train)
             else:
                 outputs_train = model(inputs_train)
 
-            if args.deep_supervision:
-                loss_train = 0
-                for output_train in outputs_train:
-                    loss_train += criterion(output_train, mask_train)
-                loss_train /= len(outputs_train)
-                outputs_train = outputs_train[0]
+            if args.network == "unet_urpc" or args.network == "unet_cct": 
+                loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4
             else:
                 loss_train = criterion(outputs_train, mask_train)
 
@@ -255,19 +250,12 @@ if __name__ == '__main__':
 
                     optimizer.zero_grad()
 
-                    if args.network == "unet_urpc":
+                    if args.network == "unet_urpc" or args.network == "unet_cct":
                         outputs_val, _, _, _ = model(inputs_val)
                     else:
                         outputs_val = model(inputs_val)
 
-                    if args.deep_supervision:
-                        loss_val = 0
-                        for output_val in outputs_val:
-                            loss_val += criterion(output_val, mask_val)
-                        loss_val /= len(outputs_val)
-                        outputs_val = outputs_val[0]
-                    else:
-                        loss_val = criterion(outputs_val, mask_val)
+                    loss_val = criterion(outputs_val, mask_val)
                     val_loss += loss_val.item()
 
                     if i == 0:

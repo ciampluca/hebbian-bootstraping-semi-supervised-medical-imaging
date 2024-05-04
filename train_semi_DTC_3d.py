@@ -84,9 +84,9 @@ if __name__ == '__main__':
      # create folders
     net_name = args.network
     if args.network == "unet3d_dtc":
-        net_name = "unet"
+        net_name = "unet3d"
     elif args.network == "vnet_dtc":
-        net_name = "vnet"
+        net_name = "vnet3d"
 
     if args.regime < 100:
         if args.load_hebbian_weights:
@@ -125,6 +125,7 @@ if __name__ == '__main__':
         data_dir=args.path_dataset + '/train',
         input1=args.input1,
         transform_1=data_transform['train'],
+        num_classes=cfg['NUM_CLASSES'],
         queue_length=args.queue_length,
         samples_per_volume=args.samples_per_volume_train,
         patch_size=args.patch_size,
@@ -139,6 +140,7 @@ if __name__ == '__main__':
         data_dir=args.path_dataset + '/train',
         input1=args.input1,
         transform_1=data_transform['train'],
+        num_classes=cfg['NUM_CLASSES'],
         queue_length=args.queue_length,
         samples_per_volume=args.samples_per_volume_train,
         patch_size=args.patch_size,
@@ -153,6 +155,7 @@ if __name__ == '__main__':
         data_dir=args.path_dataset + '/val',
         input1=args.input1,
         transform_1=data_transform['val'],
+        num_classes=cfg['NUM_CLASSES'],
         queue_length=args.queue_length,
         samples_per_volume=args.samples_per_volume_val,
         patch_size=args.patch_size,

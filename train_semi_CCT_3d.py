@@ -125,23 +125,8 @@ if __name__ == '__main__':
     # Dataset
     data_transform = data_transform_3d(cfg['NORMALIZE'])
 
-    dataset_train_unsup = dataset_it(
-        data_dir=args.path_dataset + '/train_unsup_' + args.unsup_mark,
-        input1=args.input1,
-        transform_1=data_transform['train'],
-        queue_length=args.queue_length,
-        samples_per_volume=args.samples_per_volume_train,
-        patch_size=args.patch_size,
-        num_workers=8,
-        shuffle_subjects=True,
-        shuffle_patches=True,
-        sup=False,
-        num_images=None
-    )
-    num_images_unsup = len(dataset_train_unsup.dataset_1)
-
     dataset_train_sup = dataset_it(
-        data_dir=args.path_dataset + '/train_sup_' + args.sup_mark,
+        data_dir=args.path_dataset + '/train',
         input1=args.input1,
         transform_1=data_transform['train'],
         queue_length=args.queue_length,
@@ -151,7 +136,22 @@ if __name__ == '__main__':
         shuffle_subjects=True,
         shuffle_patches=True,
         sup=True,
-        num_images=num_images_unsup
+        regime=args.regime,
+        seed=args.seed,
+    )
+    dataset_train_unsup = dataset_it(
+        data_dir=args.path_dataset + '/train',
+        input1=args.input1,
+        transform_1=data_transform['train'],
+        queue_length=args.queue_length,
+        samples_per_volume=args.samples_per_volume_train,
+        patch_size=args.patch_size,
+        num_workers=8,
+        shuffle_subjects=True,
+        shuffle_patches=True,
+        sup=False,
+        regime=args.regime,
+        seed=args.seed,
     )
     dataset_val = dataset_it(
         data_dir=args.path_dataset + '/val',
@@ -164,7 +164,6 @@ if __name__ == '__main__':
         shuffle_subjects=False,
         shuffle_patches=False,
         sup=True,
-        num_images=None
     )
 
     dataloaders = dict()

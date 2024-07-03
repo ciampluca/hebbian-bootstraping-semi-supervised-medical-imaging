@@ -21,9 +21,9 @@ NETWORKS=(
 )
 
 INIT_WEIGHTS=(
-    'kaiming',
-    'xavier',
-    'orthogonal',
+    'kaiming'
+    'xavier'
+    'orthogonal'
 )
 
 DATASETS=(

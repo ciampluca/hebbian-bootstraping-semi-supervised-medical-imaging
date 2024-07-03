@@ -16,9 +16,9 @@ UNSUP_WEIGHT=5
 VALIDATE_ITER=1
 
 INIT_WEIGHTS=(
-    'kaiming',
-    'xavier',
-    'orthogonal',
+    'kaiming'
+    'xavier'
+    'orthogonal'
 )
 
 DATASETS=(

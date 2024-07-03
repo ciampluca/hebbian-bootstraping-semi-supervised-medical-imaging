@@ -206,9 +206,9 @@ class unet_3D_dv_semi(nn.Module):
 
         return log_p
 
-def unet3d_urpc(in_channels, num_classes):
+def unet3d_urpc(in_channels, num_classes, init_weights='kaiming'):
     model = unet_3D_dv_semi(in_channels, num_classes)
-    init_weights(model, 'kaiming')
+    init_weights(model, init_weights)
     return model
 
 # if __name__ == '__main__':

@@ -265,9 +265,9 @@ class UNet_CCT(nn.Module):
 
         return main_seg, aux_seg1, aux_seg2, aux_seg3
 
-def unet_cct(in_channels, num_classes):
+def unet_cct(in_channels, num_classes, init_weights='kaiming'):
     model = UNet_CCT(in_channels, num_classes)
-    init_weights(model, 'kaiming')
+    init_weights(model, init_weights)
     return model
 
 

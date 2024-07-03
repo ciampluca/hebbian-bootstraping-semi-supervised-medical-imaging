@@ -179,9 +179,9 @@ class VNet(nn.Module):
         out = self.out_tr(out)
         return out
 
-def vnet(in_channels, num_classes):
+def vnet(in_channels, num_classes, init_weights='kaiming'):
     model = VNet(in_channels, num_classes)
-    init_weights(model, 'kaiming')
+    init_weights(model, init_weights)
     return model
 
 

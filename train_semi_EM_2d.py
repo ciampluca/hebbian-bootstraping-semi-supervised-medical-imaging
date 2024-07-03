@@ -54,6 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--validate_iter', default=2, type=int)
     parser.add_argument('-n', '--network', default='unet', type=str)
     parser.add_argument('--debug', default=True)
+    parser.add_argument('--init_weights', default='kaiming', type=str)
     
     parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
     parser.add_argument('--hebbian_rule', default='swta_t', type=str, help='hebbian rules to be used')
@@ -81,7 +82,7 @@ if __name__ == '__main__':
         if args.load_hebbian_weights:
             path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_em_{}_{}".format(args.network, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
         else:
-            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "em_{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "{}_em_{}".format(args.init_weights, args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     else:
         path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "fully_sup", "em_{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     if not os.path.exists(path_run):
@@ -153,7 +154,7 @@ if __name__ == '__main__':
     num_batches = {'train_sup': len(dataloaders['train_sup']), 'train_unsup': len(dataloaders['train_unsup']), 'val': len(dataloaders['val'])}
 
     # create model
-    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
+    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], args.init_weights)
 
     # eventually load hebbian weights
     hebb_params, exclude, exclude_layer_names = None, None, None

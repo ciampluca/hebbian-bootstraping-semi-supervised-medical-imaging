@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--device', default=0, type=int)
-    parser.add_argument('--path_exp', default='./runs/GlaS/semi_sup/unet/inv_temp-1/regime-1/run-0')
+    parser.add_argument('--path_exp', default='./runs/GlaS/semi_sup/kaiming_unet/inv_temp-1/regime-1/run-0')
     parser.add_argument('--best', default='JI', type=str, help="JI, DC, last")
     parser.add_argument('--path_dataset', default='data/GlaS')
     parser.add_argument('--dataset_name', default='GlaS', help='GlaS')

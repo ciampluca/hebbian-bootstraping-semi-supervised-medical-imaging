@@ -676,9 +676,9 @@ class R2AttU_Net(nn.Module):
         return d1
 
 
-def unet(in_channels, num_classes, init_weights='kaiming'):
+def unet(in_channels, num_classes, initialization_weights='kaiming'):
     model = UNet_Transposed_Leaky(in_channels, num_classes)
-    init_weights(model, init_weights)
+    init_weights(model, initialization_weights)
     return model
 
 def unet_transp(in_channels, num_classes):
@@ -686,20 +686,6 @@ def unet_transp(in_channels, num_classes):
     init_weights(model, 'kaiming')
     return model
 
-def r2_unet(in_channels, num_classes):
-    model = R2U_Net(in_channels, num_classes)
-    init_weights(model, 'kaiming')
-    return model
-
-def attention_unet(in_channels, num_classes):
-    model = AttU_Net(in_channels, num_classes)
-    init_weights(model, 'kaiming')
-    return model
-
-def r2_attention_unet(in_channels, num_classes):
-    model = R2AttU_Net(in_channels, num_classes)
-    init_weights(model, 'kaiming')
-    return model
 
 
 if __name__ == '__main__':

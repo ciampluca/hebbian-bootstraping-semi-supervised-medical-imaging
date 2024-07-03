@@ -273,9 +273,9 @@ class UNet3D_CCT_min(nn.Module):
             )
         )
 
-def unet3d_cct(in_channels, num_classes, init_weights='kaiming'):
+def unet3d_cct(in_channels, num_classes, initialization_weights='kaiming'):
     model = UNet3D_CCT(in_channels, num_classes)
-    init_weights(model, init_weights)
+    init_weights(model, initialization_weights)
     return model
 
 def unet3d_cct_min(in_channels, num_classes):

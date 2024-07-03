@@ -263,9 +263,9 @@ class UNet_URPC(nn.Module):
 
         #return dp1_out_seg, dp2_out_seg, dp3_out_seg, dp4_out_seg
 
-def unet_urpc(in_channels, num_classes, init_weights='kaiming'):
+def unet_urpc(in_channels, num_classes, initialization_weights='kaiming'):
     model = UNet_URPC(in_channels, num_classes)
-    init_weights(model, init_weights)
+    init_weights(model, initialization_weights)
     return model
 
 

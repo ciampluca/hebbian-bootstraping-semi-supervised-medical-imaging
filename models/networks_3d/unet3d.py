@@ -223,9 +223,9 @@ class UNet3D_min(nn.Module):
             )
         )
 
-def unet3d(in_channels, num_classes, init_weights='kaiming'):
+def unet3d(in_channels, num_classes, initialization_weights='kaiming'):
     model = UNet3D(in_channels, num_classes)
-    init_weights(model, init_weights)
+    init_weights(model, initialization_weights)
     return model
 
 def unet3d_min(in_channels, num_classes):

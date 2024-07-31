@@ -38,7 +38,7 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', default=1, type=int)
     parser.add_argument('-n', '--network', default='unet3d')
     parser.add_argument('--hebbian_pretrain', default=False)
-    parser.add_argument('--fill_hole_thr', default=500, help='300-500')
+    parser.add_argument('--fill_hole_thr', default=500, help='300-500')     # 100 for LiTS, 500 for Atrial
     parser.add_argument('--postprocessing', default=False)
 
     args = parser.parse_args()
@@ -71,6 +71,7 @@ if __name__ == '__main__':
         data_dir=args.path_dataset + '/val',
         input1=args.input1,
         transform_1=data_transform['test'],
+        num_classes=cfg['NUM_CLASSES'],
     )
 
     # create model and load weights
@@ -157,7 +158,7 @@ if __name__ == '__main__':
     print('=' * print_num)
     since = time.time()
 
-    test_results = offline_eval(path_seg_postprocessed_results, os.path.join(args.path_dataset, "val", "mask"))
+    test_results = offline_eval(path_seg_postprocessed_results, os.path.join(args.path_dataset, "val", "mask"), num_classes=cfg['NUM_CLASSES'])
 
     time_elapsed = time.time() - since
     m, s = divmod(time_elapsed, 60)

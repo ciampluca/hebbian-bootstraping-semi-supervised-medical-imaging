@@ -7,10 +7,10 @@ import random
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image_path', default='//10.0.5.233/shared_data/XNet/dataset/LiTS/train_sup_100/image')
-    parser.add_argument('--mask_path', default='//10.0.5.233/shared_data/XNet/dataset/LiTS/train_sup_100/mask')
-    parser.add_argument('--save_path', default='//10.0.5.233/shared_data/XNet/dataset/LiTS/val')
-    parser.add_argument('--amount', default=31)
+    parser.add_argument('--image_path', default='data/LiTS/train/image')
+    parser.add_argument('--mask_path', default='data/LiTS/train/mask')
+    parser.add_argument('--save_path', default='data/LiTS/val')
+    parser.add_argument('--amount', default=30)
     parser.add_argument('--random_seed', default=10)
     args = parser.parse_args()
 

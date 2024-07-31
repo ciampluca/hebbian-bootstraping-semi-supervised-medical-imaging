@@ -12,7 +12,7 @@ from config.dataset_config.dataset_cfg import dataset_cfg
 from config.augmentation.online_aug import data_transform_2d, data_normalize_2d
 from models.getnetwork import get_network
 from dataload.dataset_2d import imagefloder_itn
-from utils import save_preds, evaluate
+from utils import save_preds, evaluate, evaluate_distance
 
 from hebb.makehebbian import makehebbian
 
@@ -127,16 +127,15 @@ if __name__ == '__main__':
         if args.if_mask:
             print('=' * print_num)
             pixel_metrics = evaluate(cfg['NUM_CLASSES'], score_list_test, mask_list_test, print_num_minus, train=False, thr_ranges=[threshold, threshold+(args.thr_interval/2)])
-            # TODO
-            # distance_metrics = pass
+            distance_metrics = evaluate_distance(cfg['NUM_CLASSES'], score_list_test, mask_list_test, thr_ranges=[threshold, threshold+(args.thr_interval/2)])
             save_preds(score_list_test, threshold, name_list_test, path_seg_results, cfg['PALETTE'])
 
     # save test metrics in csv file
     test_metrics = pd.DataFrame([{
         'segm/dice': pixel_metrics[2],
         'segm/jaccard': pixel_metrics[1],
-        #'segm/asd': distance_metrics[1],
-        #'segm/95hd': distance_metrics[0], 
+        'segm/asd': distance_metrics[1],
+        'segm/95hd': distance_metrics[0], 
         'thresh': pixel_metrics[0],
     }])
     test_metrics.to_csv(os.path.join(args.path_exp, 'test.csv'), index=False)

@@ -70,13 +70,17 @@ def save_preds(score_list_val, threshold, name_list_val, path_seg_results, palet
         color_results.save(os.path.join(path_seg_results, name_list_val[i]))
 
 
-def save_preds_3d(score_list_val, threshold, name_list_val, path_seg_results, affine_list):
-    score_list_val = torch.softmax(score_list_val, dim=1)
-    pred_results = score_list_val[:, 1, ...].cpu().detach()
-    pred_results[pred_results > threshold] = 1
-    pred_results[pred_results <= threshold] = 0
+def save_preds_3d(score_list_val, threshold, name_list_val, path_seg_results, affine_list, num_classes=2):
 
-    pred_results = pred_results.type(torch.uint8)
+    if num_classes == 2:
+        score_list_val = torch.softmax(score_list_val, dim=1)
+        pred_results = score_list_val[:, 1, ...].cpu().detach()
+        pred_results[pred_results > threshold] = 1
+        pred_results[pred_results <= threshold] = 0
+        pred_results = pred_results.type(torch.uint8)
+    else:
+        pred_results = torch.max(score_list_val, 1)[1].cpu().detach()
+        pred_results = pred_results.type(torch.uint8)
 
     if not os.path.exists(path_seg_results):
             os.makedirs(path_seg_results)
@@ -85,7 +89,6 @@ def save_preds_3d(score_list_val, threshold, name_list_val, path_seg_results, af
         output_image.save(os.path.join(path_seg_results, name_list_val[i]))
 
 
-# TODO check if can be compressed in just one function together with previous one
 def save_test_3d(num_classes, score_test, name_test, threshold, path_seg_results, affine):
 
     if num_classes == 2:
@@ -93,19 +96,13 @@ def save_test_3d(num_classes, score_test, name_test, threshold, path_seg_results
         pred_results = score_list_test[1, ...].cpu()
         pred_results[pred_results > threshold] = 1
         pred_results[pred_results <= threshold] = 0
-
         pred_results = pred_results.type(torch.uint8)
-
-        output_image = tio.ScalarImage(tensor=pred_results.unsqueeze(0), affine=affine)
-        output_image.save(os.path.join(path_seg_results, name_test))
-
     else:
-        pred_results = torch.max(score_test, 0)[1]
-        pred_results = pred_results.cpu()
+        pred_results = torch.max(score_test, 0)[1].cpu().detach()
         pred_results = pred_results.type(torch.uint8)
 
-        output_image = tio.ScalarImage(tensor=pred_results.unsqueeze(0), affine=affine)
-        output_image.save(os.path.join(path_seg_results, name_test))
+    output_image = tio.ScalarImage(tensor=pred_results.unsqueeze(0), affine=affine)
+    output_image.save(os.path.join(path_seg_results, name_test))
 
 
 def compute_epoch_loss(loss, num_batches, print_num, print_num_minus, train=True, print_on_screen=True, unsup_pretrain=False):
@@ -179,37 +176,23 @@ def compute_val_epoch_loss_MT(val_loss_sup_1, val_loss_sup_2, num_batches, print
 def print_best_val_metrics(num_classes, best_val_list, print_num):
     if num_classes == 2:
         print('| Best Val Thr: {:.4f}'.format(best_val_list[0]).ljust(print_num, ' '), '|')
-        print('| Best Val  Jc: {:.4f}'.format(best_val_list[1]).ljust(print_num, ' '), '|')
-        print('| Best Val  Dc: {:.4f}'.format(best_val_list[2]).ljust(print_num, ' '), '|')
-    else:
-        np.set_printoptions(precision=4, suppress=True)
-        print('| Best Val  Jc: {}'.format(best_val_list[0]).ljust(print_num, ' '), '|')
-        print('| Best Val  Dc: {}'.format(best_val_list[2]).ljust(print_num, ' '), '|')
-        print('| Best Val mJc: {:.4f}'.format(best_val_list[1]).ljust(print_num, ' '), '|')
-        print('| Best Val mDc: {:.4f}'.format(best_val_list[3]).ljust(print_num, ' '), '|')
+    print('| Best Val  Jc: {:.4f}'.format(best_val_list[1]).ljust(print_num, ' '), '|')
+    print('| Best Val  Dc: {:.4f}'.format(best_val_list[2]).ljust(print_num, ' '), '|')
 
 
 def evaluate(num_classes, score_list, mask_list, print_num, print_on_screen=True, train=True, thr_ranges=[0, 0.9], thr_interval=0.02):
 
     if num_classes == 2:
         eval_list = eval_single_class(score_list, mask_list, thr_ranges=thr_ranges, thr_interval=thr_interval)
-
-        if print_on_screen:
-            text = 'Train' if train else 'Val'
-            print('| {} Thr: {:.4f}'.format(text, eval_list[0]).ljust(print_num, ' '), '|')
-            print('| {}  Jc: {:.4f}'.format(text, eval_list[1]).ljust(print_num, ' '), '|')
-            print('| {}  Dc: {:.4f}'.format(text, eval_list[2]).ljust(print_num, ' '), '|')
     else:
-        # TODO
-        pass
-        # eval_list = evaluate_multi(score_list, mask_list)
+        eval_list = eval_multi_class(score_list, mask_list)
 
-        # np.set_printoptions(precision=4, suppress=True)
-        # print('| Train  Jc: {}'.format(eval_list[0]).ljust(print_num, ' '), '|')
-        # print('| Train  Dc: {}'.format(eval_list[2]).ljust(print_num, ' '), '|')
-        # print('| Train mJc: {:.4f}'.format(eval_list[1]).ljust(print_num, ' '), '|')
-        # print('| Train mDc: {:.4f}'.format(eval_list[3]).ljust(print_num, ' '), '|')
-        # train_m_jc = eval_list[1]
+    if print_on_screen:
+        text = 'Train' if train else 'Val'
+        if num_classes == 2:
+            print('| {} Thr: {:.4f}'.format(text, eval_list[0]).ljust(print_num, ' '), '|')
+        print('| {}  Jc: {:.4f}'.format(text, eval_list[1]).ljust(print_num, ' '), '|')
+        print('| {}  Dc: {:.4f}'.format(text, eval_list[2]).ljust(print_num, ' '), '|')
 
     return eval_list
 
@@ -219,23 +202,15 @@ def evaluate_val_MT(num_classes, score_list_val1, score_list_val2, mask_list_val
     if num_classes == 2:
         eval_list1 = eval_single_class(score_list_val1, mask_list_val, thr_ranges=thr_ranges, thr_interval=thr_interval)
         eval_list2 = eval_single_class(score_list_val2, mask_list_val, thr_ranges=thr_ranges, thr_interval=thr_interval)
-
-        if print_on_screen:
-            print('| Val Thr 1: {:.4f}'.format(eval_list1[0]).ljust(print_num, ' '), '| Val Thr 2: {:.4f}'.format(eval_list2[0]).ljust(print_num, ' '), '|')
-            print('| Val  Jc 1: {:.4f}'.format(eval_list1[1]).ljust(print_num, ' '), '| Val  Jc 2: {:.4f}'.format(eval_list2[1]).ljust(print_num, ' '), '|')
-            print('| Val  Dc 1: {:.4f}'.format(eval_list1[2]).ljust(print_num, ' '), '| Val  Dc 2: {:.4f}'.format(eval_list2[2]).ljust(print_num, ' '), '|')
     else:
-        # TODO
-        pass
-        # eval_list1 = evaluate_multi(score_list_val1, mask_list_val)
-        # eval_list2 = evaluate_multi(score_list_val2, mask_list_val)
-        # np.set_printoptions(precision=4, suppress=True)
-        # print('| Val  Jc 1: {}  '.format(eval_list1[0]).ljust(print_num, ' '), '| Val  Jc 2: {}'.format(eval_list2[0]).ljust(print_num, ' '), '|')
-        # print('| Val  Dc 1: {}  '.format(eval_list1[2]).ljust(print_num, ' '), '| Val  Dc 2: {}'.format(eval_list2[2]).ljust(print_num, ' '), '|')
-        # print('| Val mJc 1: {:.4f}'.format(eval_list1[1]).ljust(print_num, ' '), '| Val mJc 2: {:.4f}'.format(eval_list2[1]).ljust(print_num, ' '), '|')
-        # print('| Val mDc 1: {:.4f}'.format(eval_list1[3]).ljust(print_num, ' '), '| Val mDc 2: {:.4f}'.format(eval_list2[3]).ljust(print_num, ' '), '|')
-        # val_m_jc1 = eval_list1[1]
-        # val_m_jc2 = eval_list2[1]
+        eval_list1 = eval_multi_class(score_list_val1, mask_list_val)
+        eval_list2 = eval_multi_class(score_list_val2, mask_list_val)       
+
+    if print_on_screen:
+        if num_classes == 2:
+            print('| Val Thr 1: {:.4f}'.format(eval_list1[0]).ljust(print_num, ' '), '| Val Thr 2: {:.4f}'.format(eval_list2[0]).ljust(print_num, ' '), '|')
+        print('| Val  Jc 1: {:.4f}'.format(eval_list1[1]).ljust(print_num, ' '), '| Val  Jc 2: {:.4f}'.format(eval_list2[1]).ljust(print_num, ' '), '|')
+        print('| Val  Dc 1: {:.4f}'.format(eval_list1[2]).ljust(print_num, ' '), '| Val  Dc 2: {:.4f}'.format(eval_list2[2]).ljust(print_num, ' '), '|')
         
     return eval_list1, eval_list2
 
@@ -246,24 +221,16 @@ def evaluate_XNet(num_classes, score_list_train1, score_list_train2, mask_list_t
     if num_classes == 2:
         eval_list1 = eval_single_class(score_list_train1, mask_list_train, thr_ranges=thr_ranges, thr_interval=thr_interval)
         eval_list2 = eval_single_class(score_list_train2, mask_list_train, thr_ranges=thr_ranges, thr_interval=thr_interval)
-
-        if print_on_screen:
-            text = 'Train' if train else 'Val'
-            print('| {} Thr 1: {:.4f}'.format(text, eval_list1[0]).ljust(print_num, ' '), '| {} Thr 2: {:.4f}'.format(text, eval_list2[0]).ljust(print_num, ' '), '|')
-            print('| {}  Jc 1: {:.4f}'.format(text, eval_list1[1]).ljust(print_num, ' '), '| {} Jc 2: {:.4f}'.format(text, eval_list2[1]).ljust(print_num, ' '), '|')
-            print('| {}  Dc 1: {:.4f}'.format(text, eval_list1[2]).ljust(print_num, ' '), '| {}  Dc 2: {:.4f}'.format(text, eval_list2[2]).ljust(print_num, ' '), '|')
     else:
-        # TODO
-        pass
-        #eval_list1 = evaluate_multi(score_list_train1, mask_list_train)
-        #eval_list2 = evaluate_multi(score_list_train2, mask_list_train)
-        # np.set_printoptions(precision=4, suppress=True)
-        # print('| Train  Jc 1: {}'.format(eval_list1[0]).ljust(print_num, ' '), '| Train  Jc 2: {}'.format(eval_list2[0]).ljust(print_num, ' '), '|')
-        # print('| Train  Dc 1: {}'.format(eval_list1[2]).ljust(print_num, ' '), '| Train  Dc 2: {}'.format(eval_list2[2]).ljust(print_num, ' '), '|')
-        # print('| Train mJc 1: {:.4f}'.format(eval_list1[1]).ljust(print_num, ' '), '| Train mJc 2: {:.4f}'.format(eval_list2[1]).ljust(print_num, ' '), '|')
-        # print('| Train mDc 1: {:.4f}'.format(eval_list1[3]).ljust(print_num, ' '), '| Train mDc 2: {:.4f}'.format(eval_list2[3]).ljust(print_num, ' '), '|')
-        # train_m_jc1 = eval_list1[1]
-        # train_m_jc2 = eval_list2[1]
+        eval_list1 = eval_multi_class(score_list_train1, mask_list_train)
+        eval_list2 = eval_multi_class(score_list_train2, mask_list_train)
+
+    if print_on_screen:
+        text = 'Train' if train else 'Val'
+        if num_classes == 2:
+            print('| {} Thr 1: {:.4f}'.format(text, eval_list1[0]).ljust(print_num, ' '), '| {} Thr 2: {:.4f}'.format(text, eval_list2[0]).ljust(print_num, ' '), '|')
+        print('| {}  Jc 1: {:.4f}'.format(text, eval_list1[1]).ljust(print_num, ' '), '| {} Jc 2: {:.4f}'.format(text, eval_list2[1]).ljust(print_num, ' '), '|')
+        print('| {}  Dc 1: {:.4f}'.format(text, eval_list1[2]).ljust(print_num, ' '), '| {}  Dc 2: {:.4f}'.format(text, eval_list2[2]).ljust(print_num, ' '), '|')
 
     return eval_list1, eval_list2
 
@@ -296,30 +263,63 @@ def eval_single_class(y_scores, y_true, thr_ranges=[0, 0.9], thr_interval=0.02):
     return thresholds[thred_indx], m_jaccard, m_dice
 
 
-def eval_distance(mask_list, seg_result_list, num_classes):
+def eval_multi_class(y_scores, y_true):
+    
+    y_scores = torch.softmax(y_scores, dim=1)
+    y_pred = torch.max(y_scores, 1)[1]
+    y_pred = y_pred.data.cpu().numpy().flatten()
+    y_true = y_true.data.cpu().numpy().flatten()
+
+    hist = confusion_matrix(y_true, y_pred)
+
+    hist_diag = np.diag(hist)
+    hist_sum_0 = hist.sum(axis=0)
+    hist_sum_1 = hist.sum(axis=1)
+
+    jaccard = hist_diag / (hist_sum_1 + hist_sum_0 - hist_diag)
+    m_jaccard = np.nanmean(jaccard)
+    dice = 2 * hist_diag / (hist_sum_1 + hist_sum_0)
+    m_dice = np.nanmean(dice)
+
+    return None, m_jaccard, m_dice
+
+
+def evaluate_distance(num_classes, score_list, mask_list, thr_ranges=[0, 0.9], thr_interval=0.02):
 
     print_num = 42 + (num_classes - 3) * 7
     print_num_minus = print_num - 2
 
-    assert len(mask_list) == len(seg_result_list)
+    assert len(mask_list) == len(score_list)
+
+    score_list = torch.softmax(score_list, dim=1)
+    score_list = score_list[:, 1, ...].cpu().detach().numpy()
+    mask_list = mask_list.cpu().detach().numpy()
 
     hd_list = []
     sd_list = []
 
     if num_classes == 2:
+        thresholds = np.arange(thr_ranges[0], thr_ranges[1], thr_interval)
+        hd_ = np.zeros(len(thresholds))
+        sd_ = np.zeros(len(thresholds))
+
         for i in range(len(mask_list)):
-            if np.any(seg_result_list[i]) and np.any(mask_list[i]):
-                hd_ = hd95(seg_result_list[i], mask_list[i])
-                sd_ = assd(seg_result_list[i], mask_list[i])
-                hd_list.append(hd_)
-                sd_list.append(sd_)
+            for indy in range(len(thresholds)):
+                threshold = thresholds[indy]
+                score_list[i] = (score_list[i] > threshold).astype(np.int8)
+
+                if np.any(score_list[i]) and np.any(mask_list[i] != 0):
+                    hd_[indy] = hd95(score_list[i], mask_list[i])
+                    sd_[indy] = assd(score_list[i], mask_list[i])
+
+            hd_list.append(np.min(hd_))
+            sd_list.append(np.min(sd_))
 
         hd = np.mean(hd_list)
         sd = np.mean(sd_list)
 
         print('| Hd: {:.4f}'.format(hd).ljust(print_num_minus, ' '), '|')
         print('| Sd: {:.4f}'.format(sd).ljust(print_num_minus, ' '), '|')
-
     else:
         for cls in range(num_classes-1):
             hd_list_ = []
@@ -328,10 +328,10 @@ def eval_distance(mask_list, seg_result_list, num_classes):
             for i in range(len(mask_list)):
 
                 mask_list_ = mask_list[i].copy()
-                seg_result_list_ = seg_result_list[i].copy()
+                seg_result_list_ = score_list[i].copy()
 
                 mask_list_[mask_list[i] != (cls + 1)] = 0
-                seg_result_list_[seg_result_list[i] != (cls + 1)] = 0
+                seg_result_list_[score_list[i] != (cls + 1)] = 0
 
                 if np.any(seg_result_list_) and np.any(mask_list_):
                     hd_ = hd95(seg_result_list_, mask_list_)
@@ -359,8 +359,7 @@ def eval_distance(mask_list, seg_result_list, num_classes):
 
     print('-' * print_num) 
 
-    # TODO multiclass
-    return (hd, sd) if num_classes == 2 else None
+    return (hd, sd) if num_classes == 2 else (m_hd, m_sd)
 
 
 def eval_pixel(mask_list, seg_result_list, num_classes):
@@ -382,8 +381,8 @@ def eval_pixel(mask_list, seg_result_list, num_classes):
         m_jaccard = np.nanmean(jaccard)
         m_dice = np.nanmean(dice)
         np.set_printoptions(precision=4, suppress=True)
-        print('|  Jc: {}'.format(jaccard).ljust(print_num_minus, ' '), '|')
-        print('|  Dc: {}'.format(dice).ljust(print_num_minus, ' '), '|')
+        #print('|  Jc: {}'.format(jaccard).ljust(print_num_minus, ' '), '|')
+        #print('|  Dc: {}'.format(dice).ljust(print_num_minus, ' '), '|')
         print('| mJc: {:.4f}'.format(m_jaccard).ljust(print_num_minus, ' '), '|')
         print('| mDc: {:.4f}'.format(m_dice).ljust(print_num_minus, ' '), '|')
     else:
@@ -426,6 +425,26 @@ def postprocess_3d_pred(dataset_name, pred_path, save_path, fill_hole_thr=500):
 
             pred = sitk.GetImageFromArray(pred)
             sitk.WriteImage(pred, os.path.join(save_path, i))
+
+    elif dataset_name == 'LiTS':
+        for i in os.listdir(pred_path):
+            pred = sitk.ReadImage(os.path.join(pred_path, i))
+            pred = sitk.GetArrayFromImage(pred)
+
+            pred_ = pred.copy()
+            pred_[pred != 0] = 1
+
+            pred_ = pred_.astype(bool)
+            pred_ = remove_small_holes(pred_, fill_hole_thr)
+            pred_ = pred_.astype(np.uint8)
+
+            pred_ = save_max_objects(pred_)
+            pred_[(pred_ == 1) & (pred == 2)] = 2
+            pred_ = pred_.astype(np.uint8)
+
+            pred_ = sitk.GetImageFromArray(pred_)
+            sitk.WriteImage(pred_, os.path.join(save_path, i))
+
     else:
         print("Dataset not implemented")
 
@@ -449,7 +468,7 @@ def offline_eval(pred_path, mask_path, if_3D=True, num_classes=2):
             mask = sitk.GetArrayFromImage(mask)
             mask[mask==255] = 1
         else:
-            # TODO
+            # TODO maybe it is not needed
             pred = Image.open(pred_path)
             # pred = pred.resize((args.resize_shape[1], args.resize_shape[0]))
             pred = np.array(pred)

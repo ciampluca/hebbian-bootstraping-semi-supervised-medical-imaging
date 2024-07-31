@@ -7,8 +7,8 @@ import SimpleITK as sitk
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', default='E:/Biomedical datasets/LiTS')
-    parser.add_argument('--save_path', default='E:/Biomedical datasets/LiTS/dataset')
+    parser.add_argument('--data_path', default='data/LiTS/dataset')
+    parser.add_argument('--save_path', default='data/LiTS/train')
     parser.add_argument('--min_hu', default=-100)
     parser.add_argument('--max_hu', default=250)
     parser.add_argument('--target_spacing', default=[1.00, 1.00, 1.00])
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     for i in os.listdir(image_path):
 
         image_dir = os.path.join(image_path, i)
-        mask_dir = os.path.join(mask_path, i)
+        mask_dir = os.path.join(mask_path, i.replace("volume", "segmentation"))
 
         image = sitk.ReadImage(image_dir)
         mask = sitk.ReadImage(mask_dir)
@@ -63,6 +63,9 @@ if __name__ == '__main__':
 
         w, h, d = mask_np.shape
         templ = np.nonzero(mask_np)
+        if len(templ[0]) == 0 or len(templ[1]) == 0 or len(templ[2]) == 0:
+            print("{}".format(image_dir))
+            continue
         w_min = max(np.min(templ[0]) - args.crop_pixel, 0)
         w_max = min(np.max(templ[0]) + args.crop_pixel, w)
         h_min = max(np.min(templ[1]) - args.crop_pixel, 0)

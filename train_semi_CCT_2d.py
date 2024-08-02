@@ -84,7 +84,10 @@ if __name__ == '__main__':
         if args.load_hebbian_weights:
             path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_cct_{}_{}".format(net_name, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
         else:
-            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "{}_cct_{}".format(args.init_weights, net_name), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+            if args.init_weights != "kaiming":
+                path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "{}_cct_{}".format(args.init_weights, net_name), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
+            else:
+                path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "cct_{}".format(net_name), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     else:
         path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "fully_sup", "cct_{}".format(net_name), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     if not os.path.exists(path_run):

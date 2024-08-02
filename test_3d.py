@@ -171,8 +171,8 @@ if __name__ == '__main__':
     test_metrics = pd.DataFrame([{
         'segm/dice': test_results['dice'],
         'segm/jaccard': test_results['jaccard'],
-        #'segm/asd': distance_metrics[1],
-        #'segm/95hd': distance_metrics[0], 
+        'segm/asd': test_results['sd'],
+        'segm/95hd': test_results['hd'], 
         #'thresh': pixel_metrics[0],
     }])
     test_metrics.to_csv(os.path.join(args.path_exp, 'test.csv'), index=False)

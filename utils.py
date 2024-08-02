@@ -362,6 +362,70 @@ def evaluate_distance(num_classes, score_list, mask_list, thr_ranges=[0, 0.9], t
     return (hd, sd) if num_classes == 2 else (m_hd, m_sd)
 
 
+def eval_distance_offline(mask_list, seg_result_list, num_classes):
+    print_num = 42 + (num_classes - 3) * 7
+    print_num_minus = print_num - 2
+
+    assert len(mask_list) == len(seg_result_list)
+    
+    if num_classes == 2:
+        hd_list = []
+        sd_list = []
+        
+        for i in range(len(mask_list)):
+            if np.any(seg_result_list[i]) and np.any(mask_list[i]):
+                hd_ = hd95(seg_result_list[i], mask_list[i])
+                sd_ = assd(seg_result_list[i], mask_list[i])
+                hd_list.append(hd_)
+                sd_list.append(sd_)
+
+        hd = np.mean(hd_list)
+        sd = np.mean(sd_list)
+
+        print('| Hd: {:.4f}'.format(hd).ljust(print_num_minus, ' '), '|')
+        print('| Sd: {:.4f}'.format(sd).ljust(print_num_minus, ' '), '|')
+    else:
+        hd_list = []
+        sd_list = []
+
+        for cls in range(num_classes-1):
+            hd_list_ = []
+            sd_list_ = []
+
+            for i in range(len(mask_list)):
+                mask_list_ = mask_list[i].copy()
+                seg_result_list_ = seg_result_list[i].copy()
+
+                mask_list_[mask_list[i] != (cls + 1)] = 0
+                seg_result_list_[seg_result_list[i] != (cls + 1)] = 0
+
+                if np.any(seg_result_list_) and np.any(mask_list_):
+                    hd_ = hd95(seg_result_list_, mask_list_)
+                    sd_ = assd(seg_result_list_, mask_list_)
+                    hd_list_.append(hd_)
+                    sd_list_.append(sd_)
+
+            hd = np.mean(hd_list_)
+            sd = np.mean(sd_list_)
+
+            hd_list.append(hd)
+            sd_list.append(sd)
+
+        hd_list = np.array(hd_list)
+        sd_list = np.array(sd_list)
+
+        m_hd = np.mean(hd_list)
+        m_sd = np.mean(sd_list)
+
+        np.set_printoptions(precision=4, suppress=True)
+        print('|  Hd: {}'.format(hd_list).ljust(print_num_minus, ' '), '|')
+        print('|  Sd: {}'.format(sd_list).ljust(print_num_minus, ' '), '|')
+        print('| mHd: {:.4f}'.format(m_hd).ljust(print_num_minus, ' '), '|')
+        print('| mSd: {:.4f}'.format(m_sd).ljust(print_num_minus, ' '), '|')
+
+    return (hd, sd) if num_classes == 2 else (m_hd, m_sd)
+
+
 def eval_pixel(mask_list, seg_result_list, num_classes):
 
     c = confusion_matrix(mask_list, seg_result_list)
@@ -467,18 +531,6 @@ def offline_eval(pred_path, mask_path, if_3D=True, num_classes=2):
             mask = sitk.ReadImage(os.path.join(mask_path, i))
             mask = sitk.GetArrayFromImage(mask)
             mask[mask==255] = 1
-        else:
-            # TODO maybe it is not needed
-            pred = Image.open(pred_path)
-            # pred = pred.resize((args.resize_shape[1], args.resize_shape[0]))
-            pred = np.array(pred)
-
-            mask = Image.open(mask_path)
-            # mask = mask.resize((args.resize_shape[1], args.resize_shape[0]))
-            mask = np.array(mask)
-            resize = A.Resize(args.resize_shape[1], args.resize_shape[0], p=1)(image=pred, mask=mask)
-            mask = resize['mask']
-            pred = resize['image']
 
         pred_list.append(pred)
         mask_list.append(mask)
@@ -493,9 +545,9 @@ def offline_eval(pred_path, mask_path, if_3D=True, num_classes=2):
         num += 1
 
     jaccard, dice = eval_pixel(mask_flatten_list, pred_flatten_list, num_classes)
-    #eval_distance(mask_list, pred_list, num_classes)
+    hd, sd = eval_distance_offline(mask_list, pred_list, num_classes)
 
-    return {'jaccard': jaccard, 'dice': dice}
+    return {'jaccard': jaccard, 'dice': dice, 'hd': hd, 'sd': sd}
 
 
 def update_ema_variables(model, ema_model, alpha, global_step):

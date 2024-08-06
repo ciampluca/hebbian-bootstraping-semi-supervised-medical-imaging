@@ -453,7 +453,7 @@ def eval_pixel(mask_list, seg_result_list, num_classes):
         print('| Jc: {:.4f}'.format(jaccard[1]).ljust(print_num_minus, ' '), '|')
         print('| Dc: {:.4f}'.format(dice[1]).ljust(print_num_minus, ' '), '|')
 
-    return (jaccard[1], dice[1]) if num_classes == 2 else None
+    return (jaccard[1], dice[1]) if num_classes == 2 else (m_jaccard, m_dice)
 
 
 def postprocess_3d_pred(dataset_name, pred_path, save_path, fill_hole_thr=500):

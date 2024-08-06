@@ -69,6 +69,10 @@ for DATASET in ${DATASETS[@]}; do
                         python test_3d.py --dataset_name $DATASET --network $NETWORK"_dtc" --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/semi_sup/dtc_$NETWORK/inv_temp-1/regime-$REGIME/run-$REP --patch_size "(96, 96, 80)" --patch_overlap "(48, 48, 40)" --device $GPU             
                         ;;
                     LiTS)
+                        for INIT_WEIGHT in  ${INIT_WEIGHTS[@]}; do
+                            python train_sup_3d.py --dataset_name $DATASET --network $NETWORK --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --regime $REGIME --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed $REP --validate_iter 2 --device $GPU --lr $LR --loss dice --patch_size "(112, 112, 32)" --init_weights $INIT_WEIGHT
+                            python test_3d.py --dataset_name $DATASET --network $NETWORK --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/semi_sup/$INIT_WEIGHT"_"$NETWORK/inv_temp-1/regime-$REGIME/run-$REP --patch_size "(112, 112, 32)" --patch_overlap "(56, 56, 16)" --device $GPU
+                        done
                         ;;
                 esac
             done

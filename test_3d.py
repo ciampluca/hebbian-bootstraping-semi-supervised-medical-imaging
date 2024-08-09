@@ -38,7 +38,7 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', default=1, type=int)
     parser.add_argument('-n', '--network', default='unet3d')
     parser.add_argument('--hebbian_pretrain', default=False)
-    parser.add_argument('--fill_hole_thr', default=500, help='300-500')     # 100 for LiTS, 500 for Atrial
+    parser.add_argument('--fill_hole_thr', default=500, type=int, help='300-500')     # 100 for LiTS, 500 for Atrial
     parser.add_argument('--postprocessing', default=False)
 
     args = parser.parse_args()

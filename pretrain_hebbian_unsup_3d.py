@@ -119,6 +119,7 @@ if __name__ == '__main__':
         shuffle_patches=True,
         sup=True,
         seed=args.seed,
+        num_classes=cfg['NUM_CLASSES'],
     )
     dataset_val = dataset_it(
         data_dir=args.path_dataset + '/val',
@@ -131,6 +132,7 @@ if __name__ == '__main__':
         shuffle_subjects=False,
         shuffle_patches=False,
         sup=True,
+        num_classes=cfg['NUM_CLASSES'],
     )
 
     dataloaders = dict()
@@ -234,7 +236,8 @@ if __name__ == '__main__':
             writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], count_iter)
             writer.add_scalar('train/DC', train_eval_list[2], count_iter)
             writer.add_scalar('train/JI', train_eval_list[1], count_iter)
-            writer.add_scalar('train/thresh', train_eval_list[0], count_iter)
+            if cfg['NUM_CLASSES'] == 2:
+                writer.add_scalar('train/thresh', train_eval_list[0], count_iter)
 
             # saving metrics to list
             train_metrics.append({
@@ -313,7 +316,8 @@ if __name__ == '__main__':
                 writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
                 writer.add_scalar('val/DC', val_eval_list[2], count_iter)
                 writer.add_scalar('val/JI', val_eval_list[1], count_iter)
-                writer.add_scalar('val/thresh', val_eval_list[0], count_iter)
+                if cfg['NUM_CLASSES'] == 2:
+                    writer.add_scalar('val/thresh', val_eval_list[0], count_iter)
 
                 # saving metrics to list
                 val_metrics.append({

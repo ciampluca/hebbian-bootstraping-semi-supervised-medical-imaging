@@ -79,6 +79,9 @@ if __name__ == '__main__':
     print_num = 42 + (cfg['NUM_CLASSES'] - 3) * 7
     print_num_minus = print_num - 2
 
+    if isinstance(args.patch_size, str):
+        args.patch_size = eval(args.patch_size)
+
     # create folders
     path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "hebbian_unsup", "{}_{}".format(args.network, args.hebb_mode), "inv_temp-{}".format(int(args.hebb_inv_temp)), "regime-100", "run-{}".format(args.seed))
     if not os.path.exists(path_run):

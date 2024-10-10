@@ -192,6 +192,9 @@ if __name__ == '__main__':
             if args.network == "unet3d_urpc" or args.network == "unet3d_cct" or args.network == "vnet_urpc" or args.network == "vnet_cct": 
                 outputs_train, outputs_train2, outputs_train3, outputs_train4 = model(inputs_train)
                 loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4
+            elif args.network == "vnet_dtc" or args.network == "unet3d_dtc":
+                pred_train_unsup_sdf, pred_train_unsup_seg = model(inputs_train)
+                loss_train = criterion(pred_train_unsup_seg, mask_train)
             else:
                 outputs_train = model(inputs_train)
                 loss_train = criterion(outputs_train, mask_train)
@@ -232,7 +235,7 @@ if __name__ == '__main__':
                 name_list_train = [a if not (s:=sum(j == a for j in name_list_train[:i])) else f'{a}-{s+1}'
                     for i, a in enumerate(name_list_train)]
                 name_list_train = [name + ".{}".format(ext) for name in name_list_train]
-                save_preds_3d(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, affine_list_train)
+                save_preds_3d(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, affine_list_train, num_classes=cfg['NUM_CLASSES'])
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss, count_iter)
@@ -313,7 +316,7 @@ if __name__ == '__main__':
                     name_list_val = [a if not (s:=sum(j == a for j in name_list_val[:i])) else f'{a}-{s+1}'
                         for i, a in enumerate(name_list_val)]
                     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
-                    save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val)
+                    save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
                 
                 # saving metrics to tensorboard writer
                 writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
@@ -340,7 +343,7 @@ if __name__ == '__main__':
     name_list_val = [a if not (s:=sum(j == a for j in name_list_val[:i])) else f'{a}-{s+1}'
         for i, a in enumerate(name_list_val)]
     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
-    save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val)
+    save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
 
     # save last model
     save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False, hebb_params=hebb_params, layers_excluded=args.exclude)

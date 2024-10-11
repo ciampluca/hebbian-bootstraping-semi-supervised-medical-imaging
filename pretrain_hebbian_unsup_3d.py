@@ -193,8 +193,8 @@ if __name__ == '__main__':
                 outputs_train, outputs_train2, outputs_train3, outputs_train4 = model(inputs_train)
                 loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4
             elif args.network == "vnet_dtc" or args.network == "unet3d_dtc":
-                pred_train_unsup_sdf, pred_train_unsup_seg = model(inputs_train)
-                loss_train = criterion(pred_train_unsup_seg, mask_train)
+                pred_train_unsup_sdf, outputs_train = model(inputs_train)
+                loss_train = criterion(outputs_train, mask_train)
             else:
                 outputs_train = model(inputs_train)
                 loss_train = criterion(outputs_train, mask_train)

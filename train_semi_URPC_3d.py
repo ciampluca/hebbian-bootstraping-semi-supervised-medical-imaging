@@ -64,7 +64,7 @@ if __name__ == '__main__':
     parser.add_argument('--init_weights', default='kaiming', type=str)
 
     parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
-    parser.add_argument('--hebbian-rule', default='swta_t', type=str, help='hebbian rules to be used')
+    parser.add_argument('--hebbian_rule', default='swta_t', type=str, help='hebbian rules to be used')
     parser.add_argument('--hebb_inv_temp', default=1, type=int, help='hebbian temp')
 
     args = parser.parse_args()

@@ -68,7 +68,7 @@ class Decoder(nn.Module):
         self.upconv1 = nn.ConvTranspose3d(features * 2, features, kernel_size=2, stride=2)
         self.decoder1 = Decoder._block(features * 2, features, name="dec1")
 
-        self.conv = nn.Conv3d(in_channels=features, out_channels=out_channels, kernel_size=1)
+        #self.conv = nn.Conv3d(in_channels=features, out_channels=out_channels, kernel_size=1)
 
     def forward(self, x5, x4, x3, x2, x1):
 
@@ -84,9 +84,10 @@ class Decoder(nn.Module):
         dec1 = self.upconv1(dec2)
         dec1 = torch.cat((dec1, x1), dim=1)
         dec1 = self.decoder1(dec1)
-        outputs = self.conv(dec1)
+        #outputs = self.conv(dec1)
 
-        return outputs
+        #return outputs
+        return dec1
 
     @staticmethod
     def _block(in_channels, features, name):
@@ -143,9 +144,11 @@ class UNet3D_CCT(nn.Module):
 
         self.main_decoder = Decoder(features, out_channels)
 
-        self.aux_decoder1 = Decoder(features, out_channels)
-        self.aux_decoder2 = Decoder(features, out_channels)
-        self.aux_decoder3 = Decoder(features, out_channels)
+        #self.aux_decoder1 = Decoder(features, out_channels)
+        #self.aux_decoder2 = Decoder(features, out_channels)
+        #self.aux_decoder3 = Decoder(features, out_channels)
+
+        self.conv = nn.Conv3d(in_channels=features, out_channels=out_channels, kernel_size=1)
 
 
     def forward(self, x):
@@ -161,6 +164,11 @@ class UNet3D_CCT(nn.Module):
         aux_seg1 = self.main_decoder(FeatureNoise()(bottleneck), FeatureNoise()(enc4), FeatureNoise()(enc3), FeatureNoise()(enc2), FeatureNoise()(enc1))
         aux_seg2 = self.main_decoder(Dropout(bottleneck), Dropout(enc4), Dropout(enc3), Dropout(enc2), Dropout(enc1))
         aux_seg3 = self.main_decoder(FeatureDropout(bottleneck), FeatureDropout(enc4), FeatureDropout(enc3), FeatureDropout(enc2), FeatureDropout(enc1))
+
+        main_seg = self.conv(main_seg)
+        aux_seg1 = self.conv(aux_seg1)
+        aux_seg2 = self.conv(aux_seg2)
+        aux_seg3 = self.conv(aux_seg3)
 
         return main_seg, aux_seg1, aux_seg2, aux_seg3
 

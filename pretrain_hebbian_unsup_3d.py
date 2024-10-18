@@ -271,6 +271,8 @@ if __name__ == '__main__':
 
                     if args.network == "unet3d_urpc" or args.network == "unet3d_cct" or args.network == "vnet_urpc" or args.network == "vnet_cct":
                         outputs_val, _, _, _ = model(inputs_val)
+                    elif args.network == "vnet_dtc" or args.network == "unet3d_dtc":
+                        _, outputs_val = model(inputs_val)
                     else:
                         outputs_val = model(inputs_val)
 

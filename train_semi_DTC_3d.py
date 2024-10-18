@@ -195,7 +195,7 @@ if __name__ == '__main__':
         exclude = [(n, m) for n, m in model.named_modules() if any([n == e for e in exclude])]
         exclude = [m for _, p in exclude for m in [*p.modules()]]
 
-        if args.network == 'unet3d':
+        if args.network.startswith('unet3d'):
             init_weights = init_weights_unet3d
         elif args.network == 'vnet':
             init_weights = init_weights_vnet

@@ -170,7 +170,7 @@ if __name__ == '__main__':
 
         for i, data in enumerate(dataloaders['train']):
             inputs_train = Variable(data['image'][tio.DATA].cuda())
-            mask_train = superpix_segment_3d(inputs_train)
+            mask_train = superpix_segment_3d(inputs_train).to(dtype=torch.int64)
             name_train = data['ID']
             affine_train = data['image']['affine']
 
@@ -250,7 +250,7 @@ if __name__ == '__main__':
 
                 for i, data in enumerate(dataloaders['val']):
                     inputs_val = Variable(data['image'][tio.DATA].cuda())
-                    mask_val = superpix_segment_3d(inputs_val)
+                    mask_val = superpix_segment_3d(inputs_val).to(dtype=torch.int64)
                     name_val = data['ID']
                     affine_val = data['image']['affine']
 

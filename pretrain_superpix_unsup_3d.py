@@ -21,9 +21,6 @@ from models.getnetwork import get_network
 from dataload.dataset_3d import dataset_it
 from utils import save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, save_preds_3d, superpix_segment_3d
 
-from hebb.makehebbian import makehebbian
-from models.networks_2d.unet import init_weights as init_weights_unet
-
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
 

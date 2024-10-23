@@ -18,7 +18,7 @@ from config.augmentation.online_aug import data_transform_2d, data_normalize_2d
 from loss.loss_function import segmentation_loss
 from models.getnetwork import get_network
 from dataload.dataset_2d import imagefloder_itn
-from utils import save_preds, save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics
+from utils import save_preds, save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, superpix_segment
 
 from hebb.makehebbian import makehebbian
 from models.networks_2d.unet import init_weights as init_weights_unet
@@ -54,12 +54,6 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--network', default='unet', type=str)
     parser.add_argument('--debug', default=True)
     
-    parser.add_argument('--exclude', nargs='*', default=['Conv_1x1'], type=str, 
-                        help="Full name of the layers to exclude from conversion to Hebbian. These names depend on how they were called in the specific network that you wish to use.")
-    parser.add_argument('--hebb_mode', default='swta_t', type=str)
-    parser.add_argument('--hebb_inv_temp', default=50., type=float)
-    parser.add_argument('--hebb_w_nrm', default=True, type=bool)
-    parser.add_argument('--hebb_alpha', default=1., type=float)
     
     args = parser.parse_args()
 
@@ -75,7 +69,7 @@ if __name__ == '__main__':
     print_num_minus = print_num - 2
 
     # create folders
-    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "hebbian_unsup", "{}_{}".format(args.network, args.hebb_mode), "inv_temp-{}".format(int(args.hebb_inv_temp)), "regime-100", "run-{}".format(args.seed))
+    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "superpix_unsup", "{}".format(args.network), "inv_temp-1", "regime-100", "run-{}".format(args.seed))
     if not os.path.exists(path_run):
         os.makedirs(path_run)
     path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))
@@ -136,9 +130,6 @@ if __name__ == '__main__':
 
     # create model
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
-    hebb_params={'mode': args.hebb_mode, 'k': args.hebb_inv_temp, 'w_nrm': args.hebb_w_nrm, 'alpha': args.hebb_alpha}
-    makehebbian(model, exclude=args.exclude, hebb_params=hebb_params)
-    init_weights_unet(model, init_type='kaiming')
     model = model.cuda()
 
     # define criterion, optimizer, and scheduler
@@ -173,7 +164,7 @@ if __name__ == '__main__':
 
         for i, data in enumerate(dataloaders['train']):
             inputs_train = Variable(data['image'].cuda())
-            mask_train = Variable(data['mask'].cuda())
+            mask_train = superpix_segment(inputs_train).to(dtype=torch.int64)
             name_train = data['ID']
             if mask_train.dim() == 3:
                 mask_train = torch.unsqueeze(mask_train, dim=1)
@@ -242,7 +233,7 @@ if __name__ == '__main__':
 
                 for i, data in enumerate(dataloaders['val']):
                     inputs_val = Variable(data['image'].cuda())
-                    mask_val = Variable(data['mask'].cuda())
+                    mask_val = superpix_segment(inputs_val).to(dtype=torch.int64)
                     name_val = data['ID']
 
                     optimizer.zero_grad()

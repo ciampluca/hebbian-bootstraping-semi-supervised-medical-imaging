@@ -10,14 +10,10 @@ GPU=0
 
 BATCH_SIZE=2
 EVAL_BATCH_SIZE=2
-LR=0.000001
+LR=0.0001
 OPTIMIZER=adam
 THRESHOLD=0.5
 VALIDATE_ITER=2
-
-K_VALUES=(
-    1
-)
 
 DATASETS=(
     GlaS
@@ -30,9 +26,7 @@ EXP_ROOT=./runs
 
 
 # Train & Test
-for K in ${K_VALUES[@]}; do
-    for DATASET in ${DATASETS[@]}; do
-            python pretrain_superpix_unsup_2d.py --dataset_name $DATASET --network unet --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed 0 --validate_iter $VALIDATE_ITER --device $GPU --lr $LR --loss dice #--threshold $THRESHOLD
-            #python test_2d.py --dataset_name $DATASET --network unet --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best last --path_exp $EXP_ROOT/$DATASET/superpix_unsup/unet/inv_temp-$K/regime-100/run-0 --device $GPU --threshold $THRESHOLD
-    done
+for DATASET in ${DATASETS[@]}; do
+        python pretrain_superpix_unsup_2d.py --dataset_name $DATASET --network unet_superpix --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed 0 --validate_iter $VALIDATE_ITER --device $GPU --lr $LR --loss dice #--threshold $THRESHOLD
+        python test_2d.py --dataset_name $DATASET --network unet_superpix --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best last --path_exp $EXP_ROOT/$DATASET/superpix_unsup/unet_superpix/inv_temp-1/regime-100/run-0 --device $GPU --threshold $THRESHOLD
 done

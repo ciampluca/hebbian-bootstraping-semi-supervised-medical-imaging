@@ -16,7 +16,6 @@ from models.getnetwork import get_network
 from config.dataset_config.dataset_cfg import dataset_cfg
 from config.augmentation.online_aug import data_transform_2d, data_normalize_2d
 from loss.loss_function import segmentation_loss, entropy_loss
-from models.getnetwork import get_network
 from dataload.dataset_2d import imagefloder_itn
 from config.warmup_config.warmup import GradualWarmupScheduler
 from utils import save_snapshot, save_preds, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, compute_epoch_loss_EM

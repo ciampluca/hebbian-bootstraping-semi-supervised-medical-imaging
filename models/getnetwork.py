@@ -11,6 +11,10 @@ def get_network(network, in_channels, num_classes, init_weights='kaiming', **kwa
         net = unet_urpc(in_channels, num_classes, init_weights)
     elif network == 'unet_cct':
         net = unet_cct(in_channels, num_classes, init_weights)
+    elif network == "unet_vae":
+        net = unet_vae(in_channels, num_classes, init_weights)
+    elif network == "unet_superpix":
+        net = unet_superpix(in_channels, num_classes, init_weights)
 
     # 3d networks
     elif network == 'unet3d':

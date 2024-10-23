@@ -18,10 +18,7 @@ from config.augmentation.online_aug import data_transform_2d, data_normalize_2d
 from loss.loss_function import segmentation_loss
 from models.getnetwork import get_network
 from dataload.dataset_2d import imagefloder_itn
-from utils import save_preds, save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics
-
-from hebb.makehebbian import makehebbian
-from models.networks_2d.unet import init_weights as init_weights_unet
+from utils import save_preds, save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, elbo_metric
 
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
@@ -51,15 +48,8 @@ if __name__ == '__main__':
     parser.add_argument('--validate_iter', default=2, type=int)
     parser.add_argument('--threshold', default=None,  type=float)
     parser.add_argument('--thr_interval', default=0.02,  type=float)
-    parser.add_argument('-n', '--network', default='unet', type=str)
+    parser.add_argument('-n', '--network', default='unet_vae', type=str)
     parser.add_argument('--debug', default=True)
-    
-    parser.add_argument('--exclude', nargs='*', default=['Conv_1x1'], type=str, 
-                        help="Full name of the layers to exclude from conversion to Hebbian. These names depend on how they were called in the specific network that you wish to use.")
-    parser.add_argument('--hebb_mode', default='swta_t', type=str)
-    parser.add_argument('--hebb_inv_temp', default=50., type=float)
-    parser.add_argument('--hebb_w_nrm', default=True, type=bool)
-    parser.add_argument('--hebb_alpha', default=1., type=float)
     
     args = parser.parse_args()
 
@@ -75,7 +65,7 @@ if __name__ == '__main__':
     print_num_minus = print_num - 2
 
     # create folders
-    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "hebbian_unsup", "{}_{}".format(args.network, args.hebb_mode), "inv_temp-{}".format(int(args.hebb_inv_temp)), "regime-100", "run-{}".format(args.seed))
+    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "vae_unsup", "{}".format(args.network), "inv_temp-1", "regime-100", "run-{}".format(args.seed))
     if not os.path.exists(path_run):
         os.makedirs(path_run)
     path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))
@@ -136,9 +126,6 @@ if __name__ == '__main__':
 
     # create model
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
-    hebb_params={'mode': args.hebb_mode, 'k': args.hebb_inv_temp, 'w_nrm': args.hebb_w_nrm, 'alpha': args.hebb_alpha}
-    makehebbian(model, exclude=args.exclude, hebb_params=hebb_params)
-    init_weights_unet(model, init_type='kaiming')
     model = model.cuda()
 
     # define criterion, optimizer, and scheduler
@@ -170,6 +157,7 @@ if __name__ == '__main__':
 
         train_loss = 0.0
         val_loss = 0.0
+        train_loss_vae, val_loss_vae = 0.0, 0.0
 
         for i, data in enumerate(dataloaders['train']):
             inputs_train = Variable(data['image'].cuda())
@@ -180,20 +168,20 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
 
-            if args.network == "unet_urpc" or args.network == "unet_cct":
-                outputs_train, outputs_train2, outputs_train3, outputs_train4 = model(inputs_train)
-                loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4                
-            else:
-                outputs_train = model(inputs_train)
-                loss_train = criterion(outputs_train, mask_train)
-
-            loss_train.backward()
-
-            for m in model.modules():
-                if hasattr(m, 'local_update'): m.local_update()
+            out_dict = model(inputs_train)
+            outputs_train = out_dict['output']
+            reconstr, mu, log_var = out_dict['reconstr'], out_dict['mu'], out_dict['log_var']
+            
+            loss_segm = criterion(outputs_train, mask_train)
+            loss_vae = elbo_metric(out_dict, inputs_train)
+            
+            loss_segm.backward(retain_graph=True)
+            if hasattr(model, 'reset_internal_grads'): model.reset_internal_grads()
+            loss_vae.backward()
 
             optimizer.step()
-            train_loss += loss_train.item()
+            train_loss += loss_segm.item()
+            train_loss_vae += loss_vae.item()
 
             if i == 0:
                 score_list_train = outputs_train
@@ -210,6 +198,7 @@ if __name__ == '__main__':
             print('=' * print_num)
             print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
             train_epoch_loss = compute_epoch_loss(train_loss, num_batches, print_num, print_num_minus, unsup_pretrain=True)
+            train_epoch_loss_vae = compute_epoch_loss(train_loss_vae, num_batches, print_num, print_num_minus, unsup_pretrain=True)
             if args.threshold:
                 train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus, thr_ranges=[args.threshold, args.threshold+(args.thr_interval/2)])
             else:
@@ -219,6 +208,7 @@ if __name__ == '__main__':
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss, count_iter)
+            writer.add_scalar('train/vae_loss', train_epoch_loss_vae, count_iter)
             writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], count_iter)
             writer.add_scalar('train/DC', train_eval_list[2], count_iter)
             writer.add_scalar('train/JI', train_eval_list[1], count_iter)
@@ -228,6 +218,7 @@ if __name__ == '__main__':
             train_metrics.append({
                 'epoch': count_iter,
                 'segm/loss': train_epoch_loss,
+                'segm/loss_vae': train_epoch_loss_vae,
                 'segm/dice': train_eval_list[2],
                 'segm/jaccard': train_eval_list[1],
                 'lr': optimizer.param_groups[0]['lr'],
@@ -242,18 +233,20 @@ if __name__ == '__main__':
 
                 for i, data in enumerate(dataloaders['val']):
                     inputs_val = Variable(data['image'].cuda())
-                    mask_val = Variable(data['mask'].cuda())
                     name_val = data['ID']
+                    mask_val = Variable(data['mask'].cuda())
 
                     optimizer.zero_grad()
-
-                    if args.network == "unet_urpc" or args.network == "unet_cct":
-                        outputs_val, _, _, _ = model(inputs_val)
-                    else:
-                        outputs_val = model(inputs_val)
-
-                    loss_val = criterion(outputs_val, mask_val)
-                    val_loss += loss_val.item()
+                    
+                    out_val_dict = model(inputs_val)
+                    outputs_val = out_val_dict['output']
+                    reconstr, mu, log_var = out_val_dict['reconstr'], out_val_dict['mu'], out_val_dict['log_var']
+                    
+                    loss_segm = criterion(outputs_val, mask_val)
+                    loss_vae = elbo_metric(out_val_dict, inputs_val)
+                    
+                    val_loss += loss_segm.item()
+                    val_loss_vae += loss_vae.item()
 
                     if i == 0:
                         score_list_val = outputs_val
@@ -278,6 +271,7 @@ if __name__ == '__main__':
                     # metrics_debug.to_csv(os.path.join(path_val_output_debug, "val_metrics_epoch_{}.csv").format(count_iter), index=False)
 
                 val_epoch_loss = compute_epoch_loss(val_loss, num_batches, print_num, print_num_minus, train=False, unsup_pretrain=True)
+                val_epoch_loss_vae = compute_epoch_loss(val_loss_vae, num_batches, print_num, print_num_minus, train=False, unsup_pretrain=True)
                 if args.threshold:
                     val_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_val, mask_list_val, print_num_minus, train=False, thr_ranges=[args.threshold, args.threshold+(args.thr_interval/2)])
                 else:
@@ -285,12 +279,13 @@ if __name__ == '__main__':
                 # check if best model (in terms of JI) and eventually save it
                 if best_val_eval_list[1] < val_eval_list[1]:
                     best_val_eval_list = val_eval_list
-                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=args.exclude)
+                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True)
                     # save val best preds
                     save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), cfg['PALETTE'])
                 
                 # saving metrics to tensorboard writer
                 writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
+                writer.add_scalar('val/vae_loss', val_epoch_loss_vae, count_iter)
                 writer.add_scalar('val/DC', val_eval_list[2], count_iter)
                 writer.add_scalar('val/JI', val_eval_list[1], count_iter)
                 writer.add_scalar('val/thresh', val_eval_list[0], count_iter)
@@ -299,6 +294,7 @@ if __name__ == '__main__':
                 val_metrics.append({
                     'epoch': count_iter,
                     'segm/loss': val_epoch_loss,
+                    'segm/loss_vae': val_epoch_loss_vae,
                     'segm/dice': val_eval_list[2],
                     'segm/jaccard': val_eval_list[1],
                     'thresh': val_eval_list[0],
@@ -311,7 +307,7 @@ if __name__ == '__main__':
     save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), cfg['PALETTE'])
 
     # save last model
-    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False, hebb_params=hebb_params, layers_excluded=args.exclude)
+    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False)
 
     # save train and val metrics in csv file
     train_metrics = pd.DataFrame(train_metrics)

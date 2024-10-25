@@ -20,8 +20,7 @@ from models.getnetwork import get_network
 from dataload.dataset_2d import imagefloder_itn
 from utils import save_preds, save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics
 
-from hebb.makehebbian import makehebbian
-from models.networks_2d.unet import init_weights as init_weights_unet
+from denoising_diffusion_pytorch import GaussianDiffusion
 
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
@@ -51,15 +50,9 @@ if __name__ == '__main__':
     parser.add_argument('--validate_iter', default=2, type=int)
     parser.add_argument('--threshold', default=None,  type=float)
     parser.add_argument('--thr_interval', default=0.02,  type=float)
-    parser.add_argument('-n', '--network', default='unet', type=str)
+    parser.add_argument('-n', '--network', default='unet_ddpm', type=str)
+    parser.add_argument('--timestamp_diffusion', default=1000, type=int)
     parser.add_argument('--debug', default=True)
-    
-    parser.add_argument('--exclude', nargs='*', default=['Conv_1x1'], type=str, 
-                        help="Full name of the layers to exclude from conversion to Hebbian. These names depend on how they were called in the specific network that you wish to use.")
-    parser.add_argument('--hebb_mode', default='swta_t', type=str)
-    parser.add_argument('--hebb_inv_temp', default=50., type=float)
-    parser.add_argument('--hebb_w_nrm', default=True, type=bool)
-    parser.add_argument('--hebb_alpha', default=1., type=float)
     
     args = parser.parse_args()
 
@@ -75,7 +68,7 @@ if __name__ == '__main__':
     print_num_minus = print_num - 2
 
     # create folders
-    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "hebbian_unsup", "{}_{}".format(args.network, args.hebb_mode), "inv_temp-{}".format(int(args.hebb_inv_temp)), "regime-100", "run-{}".format(args.seed))
+    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "ddpm_unsup", "{}".format(args.network), "inv_temp-1", "regime-100", "run-{}".format(args.seed))
     if not os.path.exists(path_run):
         os.makedirs(path_run)
     path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))
@@ -135,13 +128,16 @@ if __name__ == '__main__':
     num_batches = {'pretrain_unsup': len(dataloaders['train']), 'val': len(dataloaders['val'])}
 
     # create model
-    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
-    hebb_params={'mode': args.hebb_mode, 'k': args.hebb_inv_temp, 'w_nrm': args.hebb_w_nrm, 'alpha': args.hebb_alpha}
-    makehebbian(model, exclude=args.exclude, hebb_params=hebb_params)
-    init_weights_unet(model, init_type='kaiming')
+    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'],  timestamp_diffusion=args.timestamp_diffusion)
     model = model.cuda()
 
     # define criterion, optimizer, and scheduler
+    diffusion = GaussianDiffusion(
+        model.net,
+        image_size = 128,
+        timesteps = args.timestamp_diffusion,    # number of steps
+    )
+    diffusion = diffusion.to(args.device)
     criterion = segmentation_loss(args.loss, False).cuda()
 
     if args.optimizer == "adam":
@@ -170,6 +166,7 @@ if __name__ == '__main__':
 
         train_loss = 0.0
         val_loss = 0.0
+        train_loss_ddpm, val_loss_ddpm = 0.0, 0.0
 
         for i, data in enumerate(dataloaders['train']):
             inputs_train = Variable(data['image'].cuda())
@@ -180,20 +177,17 @@ if __name__ == '__main__':
 
             optimizer.zero_grad()
 
-            if args.network == "unet_urpc" or args.network == "unet_cct":
-                outputs_train, outputs_train2, outputs_train3, outputs_train4 = model(inputs_train)
-                loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4                
-            else:
-                outputs_train = model(inputs_train)
-                loss_train = criterion(outputs_train, mask_train)
+            outputs_train, reconstr_train = model(inputs_train)
+            loss_train = criterion(outputs_train, mask_train)
+            loss_ddpm = diffusion(inputs_train)
 
-            loss_train.backward()
-
-            for m in model.modules():
-                if hasattr(m, 'local_update'): m.local_update()
+            loss_train.backward(retain_graph=True)
+            if hasattr(model, 'reset_internal_grads'): model.reset_internal_grads()
+            loss_ddpm.backward()
 
             optimizer.step()
             train_loss += loss_train.item()
+            train_loss_ddpm += loss_ddpm.item()
 
             if i == 0:
                 score_list_train = outputs_train
@@ -210,6 +204,7 @@ if __name__ == '__main__':
             print('=' * print_num)
             print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
             train_epoch_loss = compute_epoch_loss(train_loss, num_batches, print_num, print_num_minus, unsup_pretrain=True)
+            train_epoch_loss_ddpm = compute_epoch_loss(train_loss_ddpm, num_batches, print_num, print_num_minus, unsup_pretrain=True)
             if args.threshold:
                 train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus, thr_ranges=[args.threshold, args.threshold+(args.thr_interval/2)])
             else:
@@ -219,6 +214,7 @@ if __name__ == '__main__':
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss, count_iter)
+            writer.add_scalar('train/ddpm_loss', train_epoch_loss, count_iter)
             writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], count_iter)
             writer.add_scalar('train/DC', train_eval_list[2], count_iter)
             writer.add_scalar('train/JI', train_eval_list[1], count_iter)
@@ -228,6 +224,7 @@ if __name__ == '__main__':
             train_metrics.append({
                 'epoch': count_iter,
                 'segm/loss': train_epoch_loss,
+                'ddpm/loss': train_epoch_loss_ddpm,
                 'segm/dice': train_eval_list[2],
                 'segm/jaccard': train_eval_list[1],
                 'lr': optimizer.param_groups[0]['lr'],
@@ -247,10 +244,7 @@ if __name__ == '__main__':
 
                     optimizer.zero_grad()
 
-                    if args.network == "unet_urpc" or args.network == "unet_cct":
-                        outputs_val, _, _, _ = model(inputs_val)
-                    else:
-                        outputs_val = model(inputs_val)
+                    outputs_val, reconstr_val = model(inputs_val)
 
                     loss_val = criterion(outputs_val, mask_val)
                     val_loss += loss_val.item()
@@ -285,7 +279,7 @@ if __name__ == '__main__':
                 # check if best model (in terms of JI) and eventually save it
                 if best_val_eval_list[1] < val_eval_list[1]:
                     best_val_eval_list = val_eval_list
-                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=args.exclude)
+                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True)
                     # save val best preds
                     save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), cfg['PALETTE'])
                 
@@ -311,7 +305,7 @@ if __name__ == '__main__':
     save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), cfg['PALETTE'])
 
     # save last model
-    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False, hebb_params=hebb_params, layers_excluded=args.exclude)
+    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False)
 
     # save train and val metrics in csv file
     train_metrics = pd.DataFrame(train_metrics)

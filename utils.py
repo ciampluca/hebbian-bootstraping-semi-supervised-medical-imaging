@@ -3,6 +3,7 @@ import os
 import random
 
 import torch
+import torch.nn.functional as F
 
 from PIL import Image
 import skimage
@@ -608,3 +609,14 @@ def superpix_segment_3d(images, thr=0.01):
                 explored[x_n, y_n, z_n] = 1
                 
     return superpix.unsqueeze(1)
+
+
+def elbo_metric(vae_outputs, targets, beta=1):
+    
+    reconstr = vae_outputs['reconstr']
+    mu = vae_outputs['mu']
+    log_var = vae_outputs['log_var']
+    reconstr_loss = F.mse_loss(reconstr, targets)
+    kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1))
+
+    return reconstr_loss + beta * kld_loss

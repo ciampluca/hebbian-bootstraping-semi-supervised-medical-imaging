@@ -1,7 +1,7 @@
 import sys
 from models import *
 
-def get_network(network, in_channels, num_classes, init_weights='kaiming', **kwargs):
+def get_network(network, in_channels, num_classes, init_weights='kaiming', timestamp_diffusion=1000, **kwargs):
 
     # 2d networks
     print(network)
@@ -15,6 +15,8 @@ def get_network(network, in_channels, num_classes, init_weights='kaiming', **kwa
         net = unet_vae(in_channels, num_classes, init_weights)
     elif network == "unet_superpix":
         net = unet_superpix(in_channels, num_classes, init_weights)
+    elif network == "unet_ddpm":
+        net = unet_ddpm(in_channels, num_classes, init_weights, timestamp_diffusion)
 
     # 3d networks
     elif network == 'unet3d':

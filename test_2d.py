@@ -35,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--thr_interval', default=0.02,  type=float)
     parser.add_argument('-b', '--batch_size', default=4, type=int)
     parser.add_argument('-n', '--network', default='unet', type=str)
+    parser.add_argument('--timestamp_diffusion', default=1000, type=int)
 
     parser.add_argument('--hebbian_pretrain', default=False)
 
@@ -81,7 +82,7 @@ if __name__ == '__main__':
     num_batches = {'val': len(dataloaders['val'])}
 
     # create model and load weights
-    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
+    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], timestamp_diffusion=args.timestamp_diffusion)
     name_snapshot = 'last' if args.best == 'last' else 'best_{}'.format(args.best)
     path_snapshot = os.path.join(args.path_exp, 'checkpoints', '{}.pth'.format(name_snapshot))
     state_dict = torch.load(path_snapshot, map_location='cpu')
@@ -111,7 +112,7 @@ if __name__ == '__main__':
                 outputs_test, _, _, _ = model(inputs_test)
             elif args.network == "unet_vae":
                 outputs_test = model(inputs_test)['output']
-            elif args.network == "unet_superpix":
+            elif args.network == "unet_superpix" or args.network == "unet_ddpm":
                 outputs_test, _ = model(inputs_test)
             else:
                 outputs_test = model(inputs_test)

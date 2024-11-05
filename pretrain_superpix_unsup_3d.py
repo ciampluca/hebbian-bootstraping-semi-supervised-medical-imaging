@@ -298,7 +298,7 @@ if __name__ == '__main__':
                 # check if best model (in terms of JI) and eventually save it
                 if best_val_eval_list[1] < val_eval_list[1]:
                     best_val_eval_list = val_eval_list
-                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True, hebb_params=hebb_params, layers_excluded=args.exclude)
+                    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=True)
                     # save val best preds
                     ext = name_list_val[0].rsplit(".", 1)[1]
                     name_list_val = [name.rsplit(".", 1)[0] for name in name_list_val]
@@ -335,7 +335,7 @@ if __name__ == '__main__':
     save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
 
     # save last model
-    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False, hebb_params=hebb_params, layers_excluded=args.exclude)
+    save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False)
 
     # save train and val metrics in csv file
     train_metrics = pd.DataFrame(train_metrics)

@@ -210,8 +210,10 @@ if __name__ == '__main__':
                 mask_train = torch.unsqueeze(mask_train, dim=1)
 
             optimizer.zero_grad()
-            if args.network == "unet_ddpm":
-                outputs_train, outputs_reconstr = model(inputs_train)
+            if args.network == "unet_ddpm" or args.network == "unet_superpix":
+                outputs_train, _ = model(inputs_train)
+            elif args.network == "unet_vae":
+                outputs_train = model(inputs_train)['output']
             else:
                 outputs_train = model(inputs_train)
 
@@ -276,8 +278,10 @@ if __name__ == '__main__':
                     name_val = data['ID']
 
                     optimizer.zero_grad()
-                    if args.network == "unet_ddpm":
-                        outputs_val, outputs_reconstr_val = model(inputs_val)
+                    if args.network == "unet_ddpm" or args.network == "unet_superpix":
+                        outputs_val, _ = model(inputs_val)
+                    elif args.network == "unet_vae":
+                        outputs_val = model(inputs_val)['output']
                     else:
                         outputs_val = model(inputs_val)
 

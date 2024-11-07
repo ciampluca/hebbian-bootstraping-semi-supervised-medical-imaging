@@ -27,6 +27,8 @@ K_VALUES=(
 
 DATASETS=(
     GlaS
+    PH2
+    HMEPS
 )
 
 HEBB_MODES=(

@@ -15,6 +15,8 @@ LR=0.5
 
 DATASETS=(
     GlaS
+    PH2
+    HMEPS
 )
 
 DATA_ROOT=./data

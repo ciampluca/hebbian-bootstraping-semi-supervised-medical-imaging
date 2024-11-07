@@ -18,6 +18,8 @@ TIMESTAMP_DIFFUSION=1000
 
 DATASETS=(
     GlaS
+    PH2
+    HMEPS
 )
 
 

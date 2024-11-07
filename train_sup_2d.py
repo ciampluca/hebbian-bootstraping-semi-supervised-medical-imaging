@@ -54,6 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--network', default='unet', type=str)
     parser.add_argument('--debug', default=True)
     parser.add_argument('--init_weights', default='kaiming', type=str)
+    parser.add_argument('--load_weights', default=None, type=str, help='path of pretrained weights (not hebbian)')
     
     parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
     parser.add_argument('--hebbian_rule', default='swta_t', type=str, help='hebbian rules to be used')
@@ -76,6 +77,8 @@ if __name__ == '__main__':
     if args.regime < 100:
         if args.load_hebbian_weights:
             path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_{}_{}".format(args.network, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
+        elif args.load_weights:
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
         else:
             path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "{}_{}".format(args.init_weights, args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     else:
@@ -162,6 +165,10 @@ if __name__ == '__main__':
 
         for p in model.parameters():
             p.requires_grad = True
+    elif args.load_weights:
+        print("Loading pre-trained weights")
+        state_dict = torch.load(args.load_weights, map_location='cpu')
+        model.load_state_dict(state_dict['model'])
 
     model = model.cuda()
 
@@ -203,7 +210,10 @@ if __name__ == '__main__':
                 mask_train = torch.unsqueeze(mask_train, dim=1)
 
             optimizer.zero_grad()
-            outputs_train = model(inputs_train)
+            if args.network == "unet_ddpm":
+                outputs_train, outputs_reconstr = model(inputs_train)
+            else:
+                outputs_train = model(inputs_train)
 
             if args.deep_supervision:
                 loss_train = 0
@@ -266,7 +276,10 @@ if __name__ == '__main__':
                     name_val = data['ID']
 
                     optimizer.zero_grad()
-                    outputs_val = model(inputs_val)
+                    if args.network == "unet_ddpm":
+                        outputs_val, outputs_reconstr_val = model(inputs_val)
+                    else:
+                        outputs_val = model(inputs_val)
 
                     if args.deep_supervision:
                         loss_val = 0

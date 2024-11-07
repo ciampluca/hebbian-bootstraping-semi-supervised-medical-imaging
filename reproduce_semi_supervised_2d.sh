@@ -24,6 +24,7 @@ INIT_WEIGHTS=(
 DATASETS=(
     GlaS
     PH2
+    HMEPS
 )
 
 REGIMES=(

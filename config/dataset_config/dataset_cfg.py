@@ -72,6 +72,19 @@ def dataset_cfg(dataet_name):
                     [255, 255, 255],
                 ]).flatten())
             },
+        'HMEPS':
+            {
+                'IN_CHANNELS': 3,
+                'NUM_CLASSES': 2,
+                'MEAN': [0.4614, 0.4614, 0.4614],
+                'STD': [0.1188, 0.1188, 0.1188],
+                #'MEAN_DB2_H': [0.489676],
+                #'STD_DB2_H': [0.081749],
+                'PALETTE': list(np.array([
+                    [0, 0, 0],
+                    [255, 255, 255],
+                ]).flatten())
+            },
         'LiTS':
             {
                 'IN_CHANNELS': 1,

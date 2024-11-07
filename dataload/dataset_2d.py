@@ -70,6 +70,8 @@ class dataset_itn(Dataset):
             mask = np.array(mask)
             mask[mask > 0] = 1
             mask = mask.astype(np.uint8)
+            if mask.ndim > 2:
+                mask = mask[:,:,0]
 
             augment_1 = self.augmentation_1(image=img_1, mask=mask)
             img_1 = augment_1['image']

@@ -35,6 +35,8 @@ REGIMES=(
 
 DATASETS=(
     GlaS
+    PH2
+    HMEPS
 )
 
 HEBB_MODES=(
@@ -42,7 +44,7 @@ HEBB_MODES=(
 )
 
 DATA_ROOT=./data
-EXP_ROOT=/home/luca/datino/results/hebbian-bootstraping-semi-supervised-medical-imaging/runs
+EXP_ROOT=./runs
 
 
 
@@ -52,9 +54,9 @@ for K in ${K_VALUES[@]}; do
         for REGIME in ${REGIMES[@]}; do
             for HEBB_MODE in ${HEBB_MODES[@]}; do
                 for REP in $(seq $(( $START_REP )) $(( $REPS - 1 ))); do
-                    HEBBIAN_WEIGHTS_PATH="./runs/GlaS/hebbian_unsup/unet_swta_t/inv_temp-$K/regime-100/run-0/checkpoints/last.pth"
-                    HEBBIAN_URPC_WEIGHTS_PATH="./runs/GlaS/hebbian_unsup/unet_urpc_swta_t/inv_temp-$K/regime-100/run-0/checkpoints/last.pth"
-                    HEBBIAN_CCT_WEIGHTS_PATH="./runs/GlaS/hebbian_unsup/unet_cct_swta_t/inv_temp-$K/regime-100/run-0/checkpoints/last.pth"
+                    HEBBIAN_WEIGHTS_PATH="./runs/$DATASET/hebbian_unsup/unet_swta_t/inv_temp-$K/regime-100/run-0/checkpoints/last.pth"
+                    HEBBIAN_URPC_WEIGHTS_PATH="./runs/$DATASET/hebbian_unsup/unet_urpc_swta_t/inv_temp-$K/regime-100/run-0/checkpoints/last.pth"
+                    HEBBIAN_CCT_WEIGHTS_PATH="./runs/$DATASET/hebbian_unsup/unet_cct_swta_t/inv_temp-$K/regime-100/run-0/checkpoints/last.pth"
                     python train_sup_2d.py --dataset_name $DATASET --network unet --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --regime $REGIME --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed $REP --validate_iter $VALIDATE_ITER --device $GPU --lr $LR --loss dice --load_hebbian_weights $HEBBIAN_WEIGHTS_PATH --hebbian_rule $HEBB_MODE --hebb_inv_temp $K  
                     python test_2d.py --dataset_name $DATASET --network unet --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/semi_sup/h_unet_$HEBB_MODE/inv_temp-$K/regime-$REGIME/run-$REP --hebbian_pretrain True --device $GPU
                     python train_semi_EM_2d.py --dataset_name $DATASET --network unet --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --regime $REGIME --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed $REP --validate_iter $VALIDATE_ITER --device $GPU --lr $LR --loss dice --load_hebbian_weights $HEBBIAN_WEIGHTS_PATH --hebbian_rule $HEBB_MODE --hebb_inv_temp $K  --unsup_weight $UNSUP_WEIGHT

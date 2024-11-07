@@ -59,6 +59,19 @@ def dataset_cfg(dataet_name):
                     [255, 255, 255],
                 ]).flatten())
             },
+        'PH2':
+            {
+                'IN_CHANNELS': 3,
+                'NUM_CLASSES': 2,
+                'MEAN': [0.7534, 0.5765, 0.4885],
+                'STD': [0.1647, 0.1598, 0.1588],
+                #'MEAN_DB2_H': [0.489676],
+                #'STD_DB2_H': [0.081749],
+                'PALETTE': list(np.array([
+                    [0, 0, 0],
+                    [255, 255, 255],
+                ]).flatten())
+            },
         'LiTS':
             {
                 'IN_CHANNELS': 1,

@@ -69,6 +69,7 @@ class dataset_itn(Dataset):
             mask = Image.open(mask_path)
             mask = np.array(mask)
             mask[mask > 0] = 1
+            mask = mask.astype(np.uint8)
 
             augment_1 = self.augmentation_1(image=img_1, mask=mask)
             img_1 = augment_1['image']

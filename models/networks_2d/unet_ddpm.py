@@ -85,7 +85,7 @@ class DDPM_Wrapper(Unet):
 
         x = self.final_res_block(x, t)
 
-        self.latent = x
+        self.latent = x.clone().detach()
 
         return self.final_conv(x)
 

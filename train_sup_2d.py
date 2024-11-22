@@ -143,6 +143,7 @@ if __name__ == '__main__':
 
     # create model
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], args.init_weights)
+    if args.network == 'unet_ddpm': model.net.latent_ft = True
 
     # eventually load hebbian weights
     hebb_params, exclude, exclude_layer_names = None, None, None
@@ -169,6 +170,7 @@ if __name__ == '__main__':
         print("Loading pre-trained weights")
         state_dict = torch.load(args.load_weights, map_location='cpu')
         model.load_state_dict(state_dict['model'])
+        if hasattr(model, 'out_conv'): init_weights_unet(model.out_conv, init_type='kaiming')
 
     model = model.cuda()
 

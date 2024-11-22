@@ -17,6 +17,8 @@ VALIDATE_ITER=2
 
 DATASETS=(
     GlaS
+    PH2
+    HMEPS
 )
 
 

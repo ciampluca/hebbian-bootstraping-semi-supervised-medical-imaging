@@ -132,7 +132,7 @@ dmypy.json
 .tool-versions
 /.idea/
 /.vscode/
+/.figures/
 data/
 runs/
 runs_*/
-temp.py

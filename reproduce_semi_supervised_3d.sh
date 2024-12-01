@@ -28,7 +28,7 @@ INIT_WEIGHTS=(
 
 DATASETS=(
     Atrial
-    #LiTS
+    LiTS
 )
 
 REGIMES=(

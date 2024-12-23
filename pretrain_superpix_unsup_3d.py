@@ -167,41 +167,42 @@ if __name__ == '__main__':
 
         train_loss = 0.0
         val_loss = 0.0
+        train_loss_superpix, val_loss_superpix = 0.0, 0.0
 
         for i, data in enumerate(dataloaders['train']):
             inputs_train = Variable(data['image'][tio.DATA].cuda())
-            mask_train = superpix_segment_3d(inputs_train).to(dtype=torch.int64)
+            mask_train = Variable(data['mask'][tio.DATA].squeeze(1).long().cuda())
+            mask_superpix = superpix_segment_3d(inputs_train).to(dtype=torch.int64)
             name_train = data['ID']
             affine_train = data['image']['affine']
 
             optimizer.zero_grad()
 
-            if args.network == "unet3d_urpc" or args.network == "unet3d_cct" or args.network == "vnet_urpc" or args.network == "vnet_cct": 
-                outputs_train, outputs_train2, outputs_train3, outputs_train4 = model(inputs_train)
-                loss_train = (criterion(outputs_train, mask_train) + criterion(outputs_train2, mask_train) + criterion(outputs_train3, mask_train) + criterion(outputs_train4, mask_train)) / 4
-            elif args.network == "vnet_dtc" or args.network == "unet3d_dtc":
-                pred_train_unsup_sdf, outputs_train = model(inputs_train)
-                loss_train = criterion(outputs_train, mask_train)
-            else:
-                outputs_train = model(inputs_train)
-                loss_train = criterion(outputs_train, mask_train)
+            outputs_train, outputs_superpix = model(inputs_train)
+            loss_train = criterion(outputs_train, mask_train)
+            loss_superpix = criterion(outputs_superpix, mask_superpix)
 
-            loss_train.backward()
+            loss_train.backward(retain_graph=True)
 
             for m in model.modules():
                 if hasattr(m, 'local_update'): m.local_update()
+            if hasattr(model, 'reset_internal_grads'): model.reset_internal_grads()
+            loss_superpix.backward()
 
             optimizer.step()
             train_loss += loss_train.item()
+            train_loss_superpix += loss_superpix.item()
 
             if i == 0:
-                score_list_train = outputs_train
-                mask_list_train = mask_train
+                score_list_train = torch.ones_like(outputs_train) #outputs_train # Dummy output for training eval to avoid oom
+                mask_list_train = torch.ones_like(mask_train) #mask_train
                 name_list_train = name_train
                 affine_list_train = affine_train
             else:
-                score_list_train = torch.cat((score_list_train, outputs_train), dim=0)
-                mask_list_train = torch.cat((mask_list_train, mask_train), dim=0)
+                #score_list_train = torch.cat((score_list_train, outputs_train), dim=0)
+                #mask_list_train = torch.cat((mask_list_train, mask_train), dim=0)
+                score_list_train = torch.cat((score_list_train, score_list_train[-1:]), dim=0)
+                mask_list_train = torch.cat((mask_list_train, mask_list_train[-1:]), dim=0)
                 name_list_train = np.append(name_list_train, name_train, axis=0)
                 affine_list_train = torch.cat((affine_list_train, affine_train), dim=0)
 
@@ -211,7 +212,7 @@ if __name__ == '__main__':
             print('=' * print_num)
             print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
             train_epoch_loss = compute_epoch_loss(train_loss, num_batches, print_num, print_num_minus, unsup_pretrain=True)
-            # TODO handle threshold like 2d version ?
+            train_epoch_loss_superpix = compute_epoch_loss(train_loss_superpix, num_batches, print_num, print_num_minus, unsup_pretrain=True)
             if args.threshold:
                 train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus, thr_ranges=[args.threshold, args.threshold+(args.thr_interval/2)])
             else:
@@ -226,6 +227,7 @@ if __name__ == '__main__':
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss, count_iter)
+            writer.add_scalar('train/superpix_loss', train_epoch_loss_superpix, count_iter)
             writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], count_iter)
             writer.add_scalar('train/DC', train_eval_list[2], count_iter)
             writer.add_scalar('train/JI', train_eval_list[1], count_iter)
@@ -236,6 +238,7 @@ if __name__ == '__main__':
             train_metrics.append({
                 'epoch': count_iter,
                 'segm/loss': train_epoch_loss,
+                'superpix/loss': train_epoch_loss_superpix,
                 'segm/dice': train_eval_list[2],
                 'segm/jaccard': train_eval_list[1],
                 'lr': optimizer.param_groups[0]['lr'],
@@ -250,21 +253,20 @@ if __name__ == '__main__':
 
                 for i, data in enumerate(dataloaders['val']):
                     inputs_val = Variable(data['image'][tio.DATA].cuda())
-                    mask_val = superpix_segment_3d(inputs_val).to(dtype=torch.int64)
+                    mask_val = Variable(data['mask'][tio.DATA].squeeze(1).long().cuda())
+                    mask_superpix_val = superpix_segment_3d(inputs_val).to(dtype=torch.int64)
                     name_val = data['ID']
                     affine_val = data['image']['affine']
 
                     optimizer.zero_grad()
 
-                    if args.network == "unet3d_urpc" or args.network == "unet3d_cct" or args.network == "vnet_urpc" or args.network == "vnet_cct":
-                        outputs_val, _, _, _ = model(inputs_val)
-                    elif args.network == "vnet_dtc" or args.network == "unet3d_dtc":
-                        _, outputs_val = model(inputs_val)
-                    else:
-                        outputs_val = model(inputs_val)
+                    outputs_val, outputs_superpix = model(inputs_val)
 
                     loss_val = criterion(outputs_val, mask_val)
+                    loss_superpix_val = criterion(outputs_superpix, mask_superpix_val)
+                    
                     val_loss += loss_val.item()
+                    val_loss_superpix += loss_superpix_val.item()
 
                     if i == 0:
                         score_list_val = outputs_val
@@ -291,6 +293,7 @@ if __name__ == '__main__':
                     # metrics_debug.to_csv(os.path.join(path_val_output_debug, "val_metrics_epoch_{}.csv").format(count_iter), index=False)
 
                 val_epoch_loss = compute_epoch_loss(val_loss, num_batches, print_num, print_num_minus, train=False, unsup_pretrain=True)
+                val_epoch_loss_superpix = compute_epoch_loss(val_loss_superpix, num_batches, print_num, print_num_minus, train=False, unsup_pretrain=True)
                 if args.threshold:
                     val_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_val, mask_list_val, print_num_minus, train=False, thr_ranges=[args.threshold, args.threshold+(args.thr_interval/2)])
                 else:
@@ -309,6 +312,7 @@ if __name__ == '__main__':
                 
                 # saving metrics to tensorboard writer
                 writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
+                writer.add_scalar('val/superpix_loss', val_epoch_loss_superpix, count_iter)
                 writer.add_scalar('val/DC', val_eval_list[2], count_iter)
                 writer.add_scalar('val/JI', val_eval_list[1], count_iter)
                 if cfg['NUM_CLASSES'] == 2:
@@ -318,6 +322,7 @@ if __name__ == '__main__':
                 val_metrics.append({
                     'epoch': count_iter,
                     'segm/loss': val_epoch_loss,
+                    'superpix/loss': val_epoch_loss_superpix,
                     'segm/dice': val_eval_list[2],
                     'segm/jaccard': val_eval_list[1],
                     'thresh': val_eval_list[0],

@@ -67,7 +67,7 @@ if __name__ == '__main__':
     print_num_minus = print_num - 2
 
     # create folders
-    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "ddpm_unsup", "{}".format(args.network), "inv_temp-1", "regime-100", "run-{}".format(args.seed))
+    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "superdiff_unsup", "{}".format(args.network), "inv_temp-1", "regime-100", "run-{}".format(args.seed))
     if not os.path.exists(path_run):
         os.makedirs(path_run)
     path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))

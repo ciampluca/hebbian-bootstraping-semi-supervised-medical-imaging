@@ -117,6 +117,13 @@ if __name__ == '__main__':
                     outputs_test, _, _, _ = model(inputs_test)
                 elif args.network == "vnet_dtc" or args.network == "unet3d_dtc":
                     _, outputs_test = model(inputs_test)
+                elif args.network == "unet3d_vae":
+                    outputs_test = model(inputs_test)['output']
+                elif args.network == "unet3d_superpix":
+                    outputs_test, _ = model(inputs_test)
+                elif args.network == "unet3d_ddpm":
+                    zero_mask = torch.zeros((inputs_test.shape[0], cfg['NUM_CLASSES'], *input_test.shape[2:]), device=inputs_test.device, dtype=torch.int64)
+                    _, outputs_test = diffusion_seg(inputs_test, zero_mask, conditioner='img')
                 else:
                     outputs_test = model(inputs_test)
 

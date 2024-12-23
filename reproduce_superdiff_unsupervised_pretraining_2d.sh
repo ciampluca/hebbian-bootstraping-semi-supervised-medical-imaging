@@ -31,5 +31,5 @@ EXP_ROOT=./runs
 # Train & Test
 for DATASET in ${DATASETS[@]}; do
         python pretrain_superdiff_unsup_2d.py --dataset_name $DATASET --network unet_ddpm --path_dataset $DATA_ROOT/$DATASET --path_root_exp $EXP_ROOT --batch_size $BATCH_SIZE --optimizer $OPTIMIZER --seed 0 --validate_iter $VALIDATE_ITER --device $GPU --lr $LR --loss dice --timestamp_diffusion $TIMESTAMP_DIFFUSION --threshold $THRESHOLD
-        python test_2d.py --dataset_name $DATASET --network unet_ddpm --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/ddpm_unsup/unet_ddpm/inv_temp-1/regime-100/run-0 --device $GPU --timestamp_diffusion $TIMESTAMP_DIFFUSION #--threshold $THRESHOLD 
+        python test_2d.py --dataset_name $DATASET --network unet_ddpm --batch_size $EVAL_BATCH_SIZE --path_dataset $DATA_ROOT/$DATASET --best JI --path_exp $EXP_ROOT/$DATASET/superdiff_unsup/unet_ddpm/inv_temp-1/regime-100/run-0 --device $GPU --timestamp_diffusion $TIMESTAMP_DIFFUSION #--threshold $THRESHOLD 
 done

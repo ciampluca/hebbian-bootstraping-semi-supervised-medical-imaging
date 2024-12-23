@@ -131,7 +131,8 @@ if __name__ == '__main__':
             elif args.network == "unet_superpix":
                 outputs_test, _ = model(inputs_test)
             elif args.network == "unet_ddpm":
-                _, outputs_test = diffusion_seg(inputs_test, torch.zeros_like(inputs_test), conditioner='img')
+                zero_mask = torch.zeros((inputs_test.shape[0], cfg['NUM_CLASSES'], *input_test.shape[2:]), device=inputs_test.device, dtype=torch.int64)
+                _, outputs_test = diffusion_seg(inputs_test, zero_mask, conditioner='img')
             else:
                 outputs_test = model(inputs_test)
 

@@ -29,6 +29,12 @@ def get_network(network, in_channels, num_classes, init_weights='kaiming', times
         net = unet3d_dtc(in_channels, num_classes, init_weights)
     elif network == 'vnet':
         net = vnet(in_channels, num_classes, init_weights)
+    elif network == "unet3d_vae":
+        net = unet3d_vae(in_channels, num_classes, init_weights)
+    elif network == "unet3d_superpix":
+        net = unet3d_superpix(in_channels, num_classes, init_weights)
+    elif network == "unet3d_ddpm":
+        net = unet3d_ddpm(in_channels, num_classes, init_weights, timestamp_diffusion)
     else:
         print('the network you have entered is not supported yet')
         sys.exit()

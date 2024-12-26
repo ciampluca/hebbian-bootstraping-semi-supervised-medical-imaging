@@ -246,7 +246,7 @@ if __name__ == '__main__':
                     for i, a in enumerate(name_list_train)]
                 name_list_train = [name + ".{}".format(ext) for name in name_list_train]
                 #save_preds_3d(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, affine_list_train, num_classes=cfg['NUM_CLASSES'])
-                save_preds(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, cfg['PALETTE'])
+                save_preds(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss, count_iter)
@@ -332,7 +332,7 @@ if __name__ == '__main__':
                         for i, a in enumerate(name_list_val)]
                     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
                     #save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
-                    save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), cfg['PALETTE'])
+                    save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
 
                 # saving metrics to tensorboard writer
                 writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
@@ -360,7 +360,7 @@ if __name__ == '__main__':
         for i, a in enumerate(name_list_val)]
     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
     #save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
-    save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), cfg['PALETTE'])
+    save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
 
     # save last model
     save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False)

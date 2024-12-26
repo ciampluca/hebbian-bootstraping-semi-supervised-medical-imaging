@@ -79,7 +79,9 @@ if __name__ == '__main__':
 
     # create model and load weights
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], img_shape=args.patch_size)
-    if args.network == 'unet_ddpm':
+    if args.network == 'unet_ddpm' or args.network == 'unet3d_ddpm':
+        if args.network == 'unet3d_ddpm':
+            from models.networks_3d.unet3d_ddpm import SuperDiffusion
         diffusion = SuperDiffusion(
             model.net,
             image_size = args.patch_size[0],
@@ -181,7 +183,7 @@ if __name__ == '__main__':
         name_list_test = [a if not (s:=sum(j == a for j in name_list_test[:i])) else f'{a}-{s+1}'
                 for i, a in enumerate(name_list_test)]
         name_list_test = [name + ".{}".format(ext) for name in name_list_test]
-        save_preds(score_list_test, pixel_metrics[0], name_list_test, path_seg_results, cfg['PALETTE'])
+        save_preds(score_list_test, pixel_metrics[0], name_list_test, path_seg_results, cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
         #print("Dc: {}, Jc: {}, Thr: {}".format(pixel_metrics[2], pixel_metrics[1], pixel_metrics[0]))
         test_results = {'dice': pixel_metrics[2], 'jaccard': pixel_metrics[1], 'thr': pixel_metrics[0], 'sd': distance_metrics[1], 'hd': distance_metrics[0]}
 

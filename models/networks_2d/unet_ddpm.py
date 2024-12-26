@@ -99,7 +99,9 @@ class SuperDiffusion(GaussianDiffusion):
 
     def forward(self, img, target, conditioner='target', loss_fn=None, *args, **kwargs):
         if target.ndim == img.ndim - 1: target = target.unsqueeze(1)
-        if target.shape[1] == 1: target = torch.cat([target, 1 - target], dim=1)
+        if target.shape[1] == 1: 
+            #target = torch.cat([target, 1 - target], dim=1)
+            target = torch.nn.functional.one_hot(target.long(), num_classes=self.model.n_classes).transpose(1, -1).squeeze(-1)
         target = target.to(dtype=img.dtype)
         b, c, h, w, device, img_size, = *img.shape, img.device, self.image_size
         assert h == img_size[0] and w == img_size[1], f'height and width of image must be {img_size}'
@@ -389,8 +391,8 @@ class DDPMUNet(nn.Module):
         self.net_seg = DDPM_Wrapper(
             dim = 64,
             dim_mults = (1, 2, 4, 8),
-            channels = class_num,
-            n_classes = in_chns,
+            channels = in_chns,
+            n_classes = class_num,
             out_dim=class_num,
             attn_enabled = False
         )

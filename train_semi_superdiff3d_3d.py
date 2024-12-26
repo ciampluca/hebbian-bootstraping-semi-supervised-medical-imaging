@@ -25,7 +25,7 @@ from models.networks_3d.unet3d import init_weights as init_weights_unet3d
 from models.networks_3d.vnet import init_weights as init_weights_vnet
 from utils import save_snapshot, init_seeds, print_best_val_metrics, save_preds, save_preds_3d, compute_val_epoch_loss_MT, evaluate_val_MT, compute_epoch_loss_XNet, evaluate_XNet
 
-from models.networks_2d.unet_ddpm import SuperDiffusion
+from models.networks_3d.unet3d_ddpm import SuperDiffusion
 
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
@@ -270,13 +270,13 @@ if __name__ == '__main__':
             unsup_index = next(dataset_train_unsup)
             img_train_unsup = Variable(unsup_index['image'][tio.DATA].cuda())
             slice_idx = img_train_unsup.shape[-1] // 2
-            img_train_unsup = img_train_unsup[:, :, :, :, slice_idx]
+            #img_train_unsup = img_train_unsup[:, :, :, :, slice_idx]
 
             sup_index = next(dataset_train_sup)
             img_train_sup = Variable(sup_index['image'][tio.DATA].cuda())
             mask_train_sup = Variable(sup_index['mask'][tio.DATA].squeeze(1).long().cuda())
             slice_idx = img_train_sup.shape[-1] // 2
-            img_train_sup, mask_train_sup = img_train_sup[:, :, :, :, slice_idx], mask_train_sup[:, :, :, slice_idx]
+            #img_train_sup, mask_train_sup = img_train_sup[:, :, :, :, slice_idx], mask_train_sup[:, :, :, slice_idx]
             name_train = sup_index['ID']
             affine_train = sup_index['image']['affine']
 
@@ -325,9 +325,9 @@ if __name__ == '__main__':
                     name_list_train = name_train
                     affine_list_train = affine_train
                 else:
-                    score_list_train1 = torch.cat((score_list_train1, pred_train_sup1), dim=0)
-                    score_list_train2 = torch.cat((score_list_train2, pred_train_sup2), dim=0)
-                    mask_list_train = torch.cat((mask_list_train, mask_train_sup), dim=0)
+                    score_list_train1 = torch.cat((score_list_train1, score_list_train1[-1:]), dim=0) #Dummy output to save memory #torch.cat((score_list_train1, pred_train_sup1), dim=0)
+                    score_list_train2 = torch.cat((score_list_train2, score_list_train2[-1:]), dim=0) #torch.cat((score_list_train2, pred_train_sup2), dim=0)
+                    mask_list_train = torch.cat((mask_list_train, mask_list_train[-1:]), dim=0) #torch.cat((mask_list_train, mask_train_sup), dim=0)
                     name_list_train = np.append(name_list_train, name_train, axis=0)
                     affine_list_train = torch.cat((affine_list_train, affine_train), dim=0)
 
@@ -349,15 +349,15 @@ if __name__ == '__main__':
             train_epoch_loss_sup1, train_epoch_loss_sup2, train_epoch_loss_unsup, train_epoch_loss = compute_epoch_loss_XNet(train_loss_sup_1, train_loss_sup_2, train_loss_unsup, train_loss, num_batches, print_num, print_num_half, print_num_minus)
             train_eval_list1, train_eval_list2 = evaluate_XNet(cfg['NUM_CLASSES'], score_list_train1, score_list_train2, mask_list_train, print_num_minus)
             if args.debug:
-                ext = 'png' #name_list_train[0].rsplit(".", 1)[1]
+                ext = name_list_train[0].rsplit(".", 1)[1]
                 name_list_train = [name.rsplit(".", 1)[0] for name in name_list_train]
                 name_list_train = [a if not (s:=sum(j == a for j in name_list_train[:i])) else f'{a}-{s+1}'
                     for i, a in enumerate(name_list_train)]
                 name_list_train = [name + ".{}".format(ext) for name in name_list_train]
-                #save_preds_3d(score_list_train1, train_eval_list1[0], name_list_train, path_train_seg_results, affine_list_train, num_classes=cfg['NUM_CLASSES'])
-                #save_preds_3d(score_list_train2, train_eval_list2[0], name_list_train, path_train_seg_results2, affine_list_train, num_classes=cfg['NUM_CLASSES'])
-                save_preds(score_list_train1, train_eval_list1[0], name_list_train, path_train_seg_results, cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
-                save_preds(score_list_train2, train_eval_list2[0], name_list_train, path_train_seg_results2, cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
+                save_preds_3d(score_list_train1, train_eval_list1[0], name_list_train, path_train_seg_results, affine_list_train, num_classes=cfg['NUM_CLASSES'])
+                save_preds_3d(score_list_train2, train_eval_list2[0], name_list_train, path_train_seg_results2, affine_list_train, num_classes=cfg['NUM_CLASSES'])
+                #save_preds(score_list_train1, train_eval_list1[0], name_list_train, path_train_seg_results, cfg['PALETTE'])
+                #save_preds(score_list_train2, train_eval_list2[0], name_list_train, path_train_seg_results2, cfg['PALETTE'])
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss_sup1, count_iter)
@@ -403,7 +403,7 @@ if __name__ == '__main__':
                     inputs_val = Variable(data['image'][tio.DATA].cuda())
                     mask_val = Variable(data['mask'][tio.DATA].squeeze(1).long().cuda())
                     slice_idx = inputs_val.shape[-1] // 2
-                    inputs_val, mask_val = inputs_val[:, :, :, :, slice_idx], mask_val[:, :, :, slice_idx]
+                    #inputs_val, mask_val = inputs_val[:, :, :, :, slice_idx], mask_val[:, :, :, slice_idx]
                     name_val = data['ID']
                     affine_val = data['image']['affine']
 
@@ -460,13 +460,13 @@ if __name__ == '__main__':
                 if best:
                     save_snapshot(best_model, path_trained_models, threshold=best_val_eval_list[0], save_best=True)
                     # save val best preds
-                    ext = 'png' #name_list_val[0].rsplit(".", 1)[1]
+                    ext = name_list_val[0].rsplit(".", 1)[1]
                     name_list_val = [name.rsplit(".", 1)[0] for name in name_list_val]
                     name_list_val = [a if not (s:=sum(j == a for j in name_list_val[:i])) else f'{a}-{s+1}'
                         for i, a in enumerate(name_list_val)]
                     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
-                    #save_preds_3d(best_score_list_val, best_val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
-                    save_preds(best_score_list_val, best_val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
+                    save_preds_3d(best_score_list_val, best_val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
+                    #save_preds(best_score_list_val, best_val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), cfg['PALETTE'])
                 
                 # saving metrics to tensorboard writer
                 writer.add_scalar('val/segm_loss', val_epoch_loss1, count_iter)
@@ -496,15 +496,15 @@ if __name__ == '__main__':
                 print('| Epoch Time: {:.4f}s'.format((time.time() - begin_time) / args.display_iter).ljust(print_num_minus, ' '), '|')
 
     # save val last preds
-    ext = 'png' #name_list_val[0].rsplit(".", 1)[1]
+    ext = name_list_val[0].rsplit(".", 1)[1]
     name_list_val = [name.rsplit(".", 1)[0] for name in name_list_val]
     name_list_val = [a if not (s:=sum(j == a for j in name_list_val[:i])) else f'{a}-{s+1}'
         for i, a in enumerate(name_list_val)]
     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
-    #save_preds_3d(score_list_val1, val_eval_list1[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
-    #save_preds_3d(score_list_val2, val_eval_list2[0], name_list_val, os.path.join(path_seg_results, 'last_model2'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
-    save_preds(score_list_val1, val_eval_list1[0], name_list_val, os.path.join(path_seg_results, 'last_model'), cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
-    save_preds(score_list_val2, val_eval_list2[0], name_list_val, os.path.join(path_seg_results, 'last_model2'), cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
+    save_preds_3d(score_list_val1, val_eval_list1[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
+    save_preds_3d(score_list_val2, val_eval_list2[0], name_list_val, os.path.join(path_seg_results, 'last_model2'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
+    #save_preds(score_list_val1, val_eval_list1[0], name_list_val, os.path.join(path_seg_results, 'last_model'), cfg['PALETTE'])
+    #save_preds(score_list_val2, val_eval_list2[0], name_list_val, os.path.join(path_seg_results, 'last_model2'), cfg['PALETTE'])
 
     # save last model
     save_snapshot(model1, path_trained_models, threshold=val_eval_list1[0], save_best=False)

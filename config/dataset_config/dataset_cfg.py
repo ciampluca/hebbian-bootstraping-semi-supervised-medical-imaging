@@ -97,6 +97,7 @@ def dataset_cfg(dataet_name):
                 'PALETTE': list(np.array([
                     [0, 0, 0],
                     [255, 255, 255],
+                    [255, 255, 0],
                 ]).flatten())
             },
         'Atrial':
@@ -107,7 +108,7 @@ def dataset_cfg(dataet_name):
                 'PATCH_SIZE': (96, 96, 80),
                 'FORMAT': '.nrrd',
                 'NUM_SAMPLE_TRAIN': 4,
-                'NUM_SAMPLE_VAL': 8
+                'NUM_SAMPLE_VAL': 8,
                 'PALETTE': list(np.array([
                     [0, 0, 0],
                     [255, 255, 255],

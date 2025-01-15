@@ -176,8 +176,9 @@ if __name__ == '__main__':
     print('=' * print_num)
 
     if args.network == 'unet_ddpm':
-        pixel_metrics = evaluate(cfg['NUM_CLASSES'], score_list_test, mask_list_test, print_num_minus, train=False, thr_ranges=[threshold, threshold+(args.thr_interval/2)])
-        distance_metrics = evaluate_distance(cfg['NUM_CLASSES'], score_list_test, mask_list_test, thr_ranges=[threshold, threshold+(args.thr_interval/2)])
+        thr_ranges = [threshold, threshold+(args.interval/2)] if cfg['NUM_CLASSES'] == 2 else None
+        pixel_metrics = evaluate(cfg['NUM_CLASSES'], score_list_test, mask_list_test, print_num_minus, train=False, thr_ranges=thr_ranges)
+        distance_metrics = evaluate_distance(cfg['NUM_CLASSES'], score_list_test, mask_list_test, thr_ranges=thr_ranges)
         ext = 'png' #name_list_train[0].rsplit(".", 1)[1]
         name_list_test = [name.rsplit(".", 1)[0] for name in name_list_test]
         name_list_test = [a if not (s:=sum(j == a for j in name_list_test[:i])) else f'{a}-{s+1}'

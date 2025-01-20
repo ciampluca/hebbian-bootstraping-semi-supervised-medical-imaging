@@ -69,5 +69,4 @@ for DATASET in ${DATASETS[@]}; do
                 done
             done
         done
-    done
 done

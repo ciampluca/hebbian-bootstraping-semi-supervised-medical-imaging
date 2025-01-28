@@ -57,9 +57,10 @@ if __name__ == '__main__':
     parser.add_argument('--samples_per_volume_train', default=4, type=int)
     parser.add_argument('--samples_per_volume_val', default=8, type=int)
     parser.add_argument('-n', '--network', default='unet3d', type=str)
-    parser.add_argument('--debug', default=True)
+    parser.add_argument('--debug', default=False)
     parser.add_argument('--init_weights', default='kaiming', type=str)
-
+    parser.add_argument('--load_weights', default=None, type=str, help='path of pretrained weights (not hebbian)')
+    
     parser.add_argument('--load_hebbian_weights', default=None, type=str, help='path of hebbian pretrained weights')
     parser.add_argument('--hebbian_rule', default='swta_t', type=str, help='hebbian rules to be used')
     parser.add_argument('--hebb_inv_temp', default=1, type=int, help='hebbian temp')
@@ -84,6 +85,8 @@ if __name__ == '__main__':
     if args.regime < 100:
         if args.load_hebbian_weights:
             path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "h_{}_{}".format(args.network, args.hebbian_rule), "inv_temp-{}".format(args.hebb_inv_temp), "regime-{}".format(args.regime), "run-{}".format(args.seed))
+        elif args.load_weights:
+            path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "{}".format(args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
         else:
             path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "semi_sup", "{}_{}".format(args.init_weights, args.network), "inv_temp-1", "regime-{}".format(args.regime), "run-{}".format(args.seed))
     else:
@@ -121,7 +124,7 @@ if __name__ == '__main__':
         queue_length=args.queue_length,
         samples_per_volume=args.samples_per_volume_train,
         patch_size=args.patch_size,
-        num_workers=8,
+        num_workers=2,
         shuffle_subjects=True,
         shuffle_patches=True,
         sup=True,
@@ -136,7 +139,7 @@ if __name__ == '__main__':
         queue_length=args.queue_length,
         samples_per_volume=args.samples_per_volume_val,
         patch_size=args.patch_size,
-        num_workers=8,
+        num_workers=2,
         shuffle_subjects=False,
         shuffle_patches=False,
         sup=True,
@@ -177,6 +180,11 @@ if __name__ == '__main__':
 
         for p in model.parameters():
             p.requires_grad = True
+    elif args.load_weights:
+        print("Loading pre-trained weights")
+        state_dict = torch.load(args.load_weights, map_location='cpu')
+        model.load_state_dict(state_dict['model'])
+        if hasattr(model, 'out_conv'): init_weights_unet3d(model.out_conv, init_type='kaiming')
 
     model = model.cuda()
 
@@ -217,7 +225,13 @@ if __name__ == '__main__':
             affine_train = data['image']['affine']
 
             optimizer.zero_grad()
-            outputs_train = model(inputs_train)
+
+            if args.network == 'unet3d_superpix':
+                outputs_train, _ = model(inputs_train)
+            elif args.network == 'unet3d_vae':
+                outputs_train = model(inputs_train)['output']
+            else:
+                outputs_train = model(inputs_train)
 
             loss_train = criterion(outputs_train, mask_train)
 
@@ -282,7 +296,12 @@ if __name__ == '__main__':
                     affine_val = data['image']['affine']
 
                     optimizer.zero_grad()
-                    outputs_val = model(inputs_val)
+                    if args.network == "unet3d_superpix":
+                        outputs_val, _ = model(inputs_val)
+                    elif args.network == "unet3d_vae":
+                        outputs_val = model(inputs_val)['output']
+                    else:
+                        outputs_val = model(inputs_val)
 
                     loss_val = criterion(outputs_val, mask_val)
                     val_loss += loss_val.item()

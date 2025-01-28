@@ -4,6 +4,9 @@ import torch.nn.functional as F
 from torch.nn.modules.utils import _pair
 
 
+ADA_STEP = False
+
+
 def normalize(x, dim=None):
 	nrm = (x**2).sum(dim=dim, keepdim=True)**0.5
 	nrm[nrm == 0] = 1.
@@ -101,31 +104,41 @@ class HebbianConv2d(nn.Module):
 				# Logic for swta-type learning
 				x_unf = F.unfold(x, kernel_size=self.kernel_size, stride=self.stride)
 				x_unf = x_unf.permute(0, 2, 1).reshape(-1, x_unf.size(1))
+				r = (y * self.k).softmax(dim=1).permute(1, 0, 2, 3)
+				r_sum = r.abs().sum(dim=(1, 2, 3), keepdim=True)
+				r_sum = r_sum + (r_sum == 0).float()  # Prevent divisions by zero
+				c = r.abs()/r_sum
+				cr = (c * r) if ADA_STEP else r
 				if self.patchwise:
-					r = (y * self.k).softmax(dim=1).permute(1, 0, 2, 3).reshape(y.shape[1], -1)
-					dec = r.sum(1, keepdim=True) * self.weight.reshape(self.weight.shape[0], -1)
-					self.delta_w += (r.matmul(x_unf) - dec).reshape_as(self.weight)
+					#r = (y * self.k).softmax(dim=1).permute(1, 0, 2, 3).reshape(y.shape[1], -1)
+					dec = cr.reshape(r.shape[0], -1).sum(1, keepdim=True) * self.weight.reshape(self.weight.shape[0], -1)
+					self.delta_w += (cr.reshape(r.shape[0], -1).matmul(x_unf) - dec).reshape_as(self.weight)
 				else:
-					r = (y * self.k).softmax(dim=1).permute(2, 3, 1, 0)
+					#r = (y * self.k).softmax(dim=1).permute(2, 3, 1, 0)
 					krn = torch.eye(len(self.weight[0].reshape(-1)), device=x.device, dtype=x.dtype).reshape(len(self.weight[0].reshape(-1)), self.weight.shape[1], *self.kernel_size)
-					dec = torch.conv_transpose2d((r.sum(dim=-1, keepdim=True) * self.weight.reshape(1, 1, self.weight.shape[0], -1)).permute(2, 3, 0, 1), krn, stride=self.stride)
-					self.delta_w += (r.permute(2, 3, 0, 1).reshape(r.shape[2], -1).matmul(x_unf) - F.unfold(dec, kernel_size=self.kernel_size, stride=self.stride).sum(dim=-1)).reshape_as(self.weight)
+					dec = torch.conv_transpose2d((cr.sum(dim=1, keepdim=True) * self.weight.reshape(1, 1, self.weight.shape[0], -1)).permute(2, 3, 0, 1), krn, stride=self.stride)
+					self.delta_w += (cr.reshape(r.shape[0], -1).matmul(x_unf) - F.unfold(dec, kernel_size=self.kernel_size, stride=self.stride).sum(dim=-1)).reshape_as(self.weight)
 			
 		if self.mode == self.MODE_HPCA:
 			with torch.no_grad():
 				# Logic for hpca-type learning
 				x_unf = F.unfold(x, kernel_size=self.kernel_size, stride=self.stride)
 				x_unf = x_unf.permute(0, 2, 1).reshape(-1, x_unf.size(1))
+				r = y.permute(1, 0, 2, 3)
+				c = 1/(r.shape[1]*r.shape[2]*r.shape[3])
+				cr = (c * r) if ADA_STEP else r
+				l = (torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.weight.shape[0], 1) <= torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
 				if self.patchwise:
-					r = y.permute(1, 0, 2, 3).reshape(y.shape[1], -1)
-					l = (torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.weight.shape[0], 1) <= torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
-					dec = (r.matmul(r.transpose(-2, -1)) * l).matmul(self.weight.reshape(self.weight.shape[0], -1))
-					self.delta_w += (r.matmul(x_unf) - dec).reshape_as(self.weight)
+					#r = y.permute(1, 0, 2, 3).reshape(y.shape[1], -1)
+					#l = (torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.weight.shape[0], 1) <= torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
+					dec = (cr.reshape(r.shape[0], -1).matmul(r.reshape(r.shape[0], -1).transpose(-2, -1)) * l).matmul(self.weight.reshape(self.weight.shape[0], -1))
+					self.delta_w += (cr.reshape(r.shape[0], -1).matmul(x_unf) - dec).reshape_as(self.weight)
 				else:
-					r = y.permute(2, 3, 1, 0)
-					l = (torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.weight.shape[0], 1) <= torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
-					dec = torch.conv_transpose2d((r.matmul(r.transpose(-2, -1)) * l.unsqueeze(0).unsqueeze(1)).permute(3, 2, 0, 1), self.weight, stride=self.stride)
-					self.delta_w += (r.permute(2, 3, 0, 1).reshape(r.shape[2], -1).matmul(x_unf) - F.unfold(dec, kernel_size=self.kernel_size, stride=self.stride).sum(dim=-1)).reshape_as(self.weight)
+					#r = y.permute(2, 3, 1, 0)
+					#l = (torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.weight.shape[0], 1) <= torch.arange(self.weight.shape[0], device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
+					r, cr = r.permute(2, 3, 0, 1), cr.permute(2, 3, 0, 1)
+					dec = torch.conv_transpose2d((cr.matmul(r.transpose(-2, -1)) * l.unsqueeze(0).unsqueeze(1)).permute(3, 2, 0, 1), self.weight, stride=self.stride)
+					self.delta_w += (cr.permute(2, 3, 0, 1).reshape(r.shape[2], -1).matmul(x_unf) - F.unfold(dec, kernel_size=self.kernel_size, stride=self.stride).sum(dim=-1)).reshape_as(self.weight)
 			
 		if self.mode == self.MODE_CONTRASTIVE:
 			y = self.compute_activation(x.clone().detach())
@@ -242,9 +255,13 @@ class HebbianConvTranspose2d(HebbianConv2d):
 				r = (y * self.k).softmax(dim=1)
 				r = F.unfold(r, kernel_size=self.kernel_size, stride=self.stride)
 				r = r.permute(0, 2, 1).reshape(-1, self.out_channels, self.kernel_size[0]*self.kernel_size[1]).permute(2, 1, 0)
-				dec = r.sum(2, keepdim=True) * self.weight.permute(2, 3, 1, 0).reshape(-1, self.out_channels, self.in_channels)
+				r_sum = r.abs().sum(dim=-1, keepdim=True)
+				r_sum = r_sum + (r_sum == 0).float()  # Prevent divisions by zero
+				c = r.abs()/r_sum
+				cr = (c * r) if ADA_STEP else r
+				dec = cr.sum(2, keepdim=True) * self.weight.permute(2, 3, 1, 0).reshape(-1, self.out_channels, self.in_channels)
 				if self.patchwise: dec = dec.sum(dim=0, keepdim=True)
-				self.delta_w += (r.matmul(x.permute(0, 2, 3, 1).reshape(1, -1, x.size(1))) - dec).permute(2, 1, 0).reshape_as(self.weight)
+				self.delta_w += (cr.matmul(x.permute(0, 2, 3, 1).reshape(1, -1, x.size(1))) - dec).permute(2, 1, 0).reshape_as(self.weight)
 		
 		if self.mode == self.MODE_HPCA_T:
 			with torch.no_grad():
@@ -252,9 +269,11 @@ class HebbianConvTranspose2d(HebbianConv2d):
 				r = y
 				r = F.unfold(r, kernel_size=self.kernel_size, stride=self.stride)
 				r = r.permute(0, 2, 1).reshape(-1, self.out_channels, self.kernel_size[0]*self.kernel_size[1]).permute(2, 1, 0)
+				c = 1/r.shape[2]
+				cr = (c * r) if ADA_STEP else r
 				l = (torch.arange(self.out_channels, device=x.device, dtype=x.dtype).unsqueeze(0).repeat(self.out_channels, 1) <= torch.arange(self.out_channels, device=x.device, dtype=x.dtype).unsqueeze(1)).to(dtype=x.dtype)
-				dec = (r.matmul(r.transpose(-2, -1)) * l.unsqueeze(0)).matmul(self.weight.permute(2, 3, 1, 0).reshape(-1, self.out_channels, self.in_channels))
+				dec = (cr.matmul(r.transpose(-2, -1)) * l.unsqueeze(0)).matmul(self.weight.permute(2, 3, 1, 0).reshape(-1, self.out_channels, self.in_channels))
 				if self.patchwise: dec = dec.sum(dim=0, keepdim=True)
-				self.delta_w += (r.matmul(x.permute(0, 2, 3, 1).reshape(1, -1, x.size(1))) - dec).permute(2, 1, 0).reshape_as(self.weight)
+				self.delta_w += (cr.matmul(x.permute(0, 2, 3, 1).reshape(1, -1, x.size(1))) - dec).permute(2, 1, 0).reshape_as(self.weight)
 		
 		

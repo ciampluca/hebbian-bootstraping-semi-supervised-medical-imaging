@@ -55,11 +55,14 @@ def save_snapshot(model, path, threshold=None, save_best=False, hebb_params=None
         save(model, os.path.join(path, model_name), hebb_params, layers_excluded)
 
 
-def save_preds(score_list_val, threshold, name_list_val, path_seg_results, palette):
-    score_list_val = torch.softmax(score_list_val, dim=1)
-    pred_results = score_list_val[:, 1, :, :].cpu().detach().numpy()
-    pred_results[pred_results > threshold] = 1
-    pred_results[pred_results <= threshold] = 0
+def save_preds(score_list_val, threshold, name_list_val, path_seg_results, palette, num_classes=2):
+    if num_classes == 2:
+        score_list_val = torch.softmax(score_list_val, dim=1)
+        pred_results = score_list_val[:, 1, :, :].cpu().detach().numpy()
+        pred_results[pred_results > threshold] = 1
+        pred_results[pred_results <= threshold] = 0
+    else:
+        pred_results = torch.max(score_list_val, 1)[1].cpu().detach().numpy()
 
     assert len(name_list_val) == pred_results.shape[0]
 

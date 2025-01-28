@@ -15,6 +15,7 @@ from dataload.dataset_2d import imagefloder_itn
 from utils import save_preds, evaluate, evaluate_distance
 
 from hebb.makehebbian import makehebbian
+from models.networks_2d.unet_ddpm import SuperDiffusion
 
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
@@ -83,6 +84,21 @@ if __name__ == '__main__':
 
     # create model and load weights
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], timestamp_diffusion=args.timestamp_diffusion)
+    if args.network == 'unet_ddpm':
+        diffusion = SuperDiffusion(
+            model.net,
+            image_size = 128,
+            timesteps = args.timestamp_diffusion,    # number of steps
+            objective='pred_noise', #'pred_x0', #'pred_v', #'pred_noise', #
+        )
+        diffusion = diffusion.to(args.device)
+        diffusion_seg = SuperDiffusion(
+            model.net_seg,
+            image_size = 128,
+            timesteps = args.timestamp_diffusion,    # number of steps
+            objective='pred_x0', #'pred_x0', #'pred_v', #'pred_noise', #
+        )
+        diffusion_seg = diffusion_seg.to(args.device)
     name_snapshot = 'last' if args.best == 'last' else 'best_{}'.format(args.best)
     path_snapshot = os.path.join(args.path_exp, 'checkpoints', '{}.pth'.format(name_snapshot))
     state_dict = torch.load(path_snapshot, map_location='cpu')
@@ -112,8 +128,11 @@ if __name__ == '__main__':
                 outputs_test, _, _, _ = model(inputs_test)
             elif args.network == "unet_vae":
                 outputs_test = model(inputs_test)['output']
-            elif args.network == "unet_superpix" or args.network == "unet_ddpm":
+            elif args.network == "unet_superpix":
                 outputs_test, _ = model(inputs_test)
+            elif args.network == "unet_ddpm":
+                zero_mask = torch.zeros((inputs_test.shape[0], cfg['NUM_CLASSES'], *inputs_test.shape[2:]), device=inputs_test.device, dtype=torch.int64)
+                _, outputs_test = diffusion_seg(inputs_test, zero_mask, conditioner='img')
             else:
                 outputs_test = model(inputs_test)
 

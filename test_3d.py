@@ -1,6 +1,7 @@
 import argparse
 import time
 import os
+import numpy as np
 import pandas as pd
 
 import torch
@@ -13,9 +14,10 @@ from config.dataset_config.dataset_cfg import dataset_cfg
 from config.augmentation.online_aug import data_transform_3d
 from models.getnetwork import get_network
 from dataload.dataset_3d import dataset_it
-from utils import save_test_3d, postprocess_3d_pred, offline_eval
+from utils import evaluate, evaluate_distance, save_preds, save_test_3d, postprocess_3d_pred, offline_eval
 
 from hebb.makehebbian import makehebbian
+from models.networks_2d.unet_ddpm import SuperDiffusion
 
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
@@ -40,6 +42,7 @@ if __name__ == '__main__':
     parser.add_argument('--hebbian_pretrain', default=False)
     parser.add_argument('--fill_hole_thr', default=500, type=int, help='300-500')     # 100 for LiTS, 500 for Atrial
     parser.add_argument('--postprocessing', default=False)
+    parser.add_argument('--timestamp_diffusion', default=1000, type=int)
 
     args = parser.parse_args()
 
@@ -76,6 +79,23 @@ if __name__ == '__main__':
 
     # create model and load weights
     model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], img_shape=args.patch_size)
+    if args.network == 'unet_ddpm' or args.network == 'unet3d_ddpm':
+        if args.network == 'unet3d_ddpm':
+            from models.networks_3d.unet3d_ddpm import SuperDiffusion
+        diffusion = SuperDiffusion(
+            model.net,
+            image_size = args.patch_size[0],
+            timesteps = args.timestamp_diffusion,    # number of steps
+            objective='pred_noise', #'pred_x0', #'pred_v', #'pred_noise', #
+        )
+        diffusion = diffusion.to(args.device)
+        diffusion_seg = SuperDiffusion(
+            model.net_seg,
+            image_size = args.patch_size[0],
+            timesteps = args.timestamp_diffusion,    # number of steps
+            objective='pred_x0', #'pred_x0', #'pred_v', #'pred_noise', #
+        )
+        diffusion_seg = diffusion_seg.to(args.device)
     name_snapshot = 'last' if args.best == 'last' else 'best_{}'.format(args.best)
     path_snapshot = os.path.join(args.path_exp, 'checkpoints', '{}.pth'.format(name_snapshot))
     state_dict = torch.load(path_snapshot, map_location='cpu')
@@ -93,6 +113,7 @@ if __name__ == '__main__':
     print('=' * print_num)
     since = time.time()
 
+    score_list_test, mask_list_test, name_list_test = None, None, None
     for i, subject in enumerate(dataset_val.dataset_1):
 
         grid_sampler = tio.inference.GridSampler(
@@ -117,13 +138,35 @@ if __name__ == '__main__':
                     outputs_test, _, _, _ = model(inputs_test)
                 elif args.network == "vnet_dtc" or args.network == "unet3d_dtc":
                     _, outputs_test = model(inputs_test)
+                elif args.network == "unet3d_vae":
+                    outputs_test = model(inputs_test)['output']
+                elif args.network == "unet3d_superpix":
+                    outputs_test, _ = model(inputs_test)
+                elif args.network == "unet3d_ddpm":
+                    zero_mask = torch.zeros((inputs_test.shape[0], cfg['NUM_CLASSES'], *inputs_test.shape[2:]), device=inputs_test.device, dtype=torch.int64)
+                    _, outputs_test = diffusion_seg(inputs_test, zero_mask, conditioner='img')
+                elif args.network == "unet_ddpm":
+                    name_test = data['ID']
+                    mask_test = Variable(data['mask'][tio.DATA].squeeze(1).long().cuda())
+                    slice_idx = inputs_test.shape[-1] // 2
+                    inputs_test, mask_test = inputs_test[:, :, :, :, slice_idx], mask_test[:, :, :, slice_idx]
+                    zero_mask = torch.zeros((inputs_test.shape[0], cfg['NUM_CLASSES'], *inputs_test.shape[2:]), device=inputs_test.device, dtype=torch.int64)
+                    _, outputs_test = diffusion_seg(inputs_test, zero_mask, conditioner='img')
                 else:
                     outputs_test = model(inputs_test)
 
-                aggregator.add_batch(outputs_test, location_test)
+                if args.network == 'unet_ddpm':
+                    score_list_test = torch.cat((score_list_test, outputs_test), dim=0) if score_list_test is not None else outputs_test
+                    mask_list_test = torch.cat((mask_list_test, mask_test), dim=0) if mask_list_test is not None else mask_test
+                    name_list_test = np.append(name_list_test, name_test, axis=0) if name_list_test is not None else name_test
+                else:
+                    aggregator.add_batch(outputs_test, location_test)
 
-        outputs_tensor = aggregator.get_output_tensor()
-        save_test_3d(cfg['NUM_CLASSES'], outputs_tensor, subject['ID'], threshold, path_seg_results, subject['image']['affine'])
+        if args.network == 'unet_ddpm':
+            pass
+        else:
+            outputs_tensor = aggregator.get_output_tensor()
+            save_test_3d(cfg['NUM_CLASSES'], outputs_tensor, subject['ID'], threshold, path_seg_results, subject['image']['affine'])
 
     time_elapsed = time.time() - since
     m, s = divmod(time_elapsed, 60)
@@ -132,40 +175,54 @@ if __name__ == '__main__':
     print('| Testing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
     print('=' * print_num)
 
-    path_seg_postprocessed_results = path_seg_results
-    if args.postprocessing:
-        # pred post-processing
+    if args.network == 'unet_ddpm':
+        thr_ranges = [threshold, threshold+(args.interval/2)] if cfg['NUM_CLASSES'] == 2 else None
+        pixel_metrics = evaluate(cfg['NUM_CLASSES'], score_list_test, mask_list_test, print_num_minus, train=False, thr_ranges=thr_ranges)
+        distance_metrics = evaluate_distance(cfg['NUM_CLASSES'], score_list_test, mask_list_test, thr_ranges=thr_ranges)
+        ext = 'png' #name_list_train[0].rsplit(".", 1)[1]
+        name_list_test = [name.rsplit(".", 1)[0] for name in name_list_test]
+        name_list_test = [a if not (s:=sum(j == a for j in name_list_test[:i])) else f'{a}-{s+1}'
+                for i, a in enumerate(name_list_test)]
+        name_list_test = [name + ".{}".format(ext) for name in name_list_test]
+        save_preds(score_list_test, pixel_metrics[0], name_list_test, path_seg_results, cfg['PALETTE'], num_classes=cfg['NUM_CLASSES'])
+        #print("Dc: {}, Jc: {}, Thr: {}".format(pixel_metrics[2], pixel_metrics[1], pixel_metrics[0]))
+        test_results = {'dice': pixel_metrics[2], 'jaccard': pixel_metrics[1], 'thr': pixel_metrics[0], 'sd': distance_metrics[1], 'hd': distance_metrics[0]}
+
+    else:
+        path_seg_postprocessed_results = path_seg_results
+        if args.postprocessing:
+            # pred post-processing
+            print('-' * print_num)
+            print('| Starting Preds Post-Processing'.ljust(print_num_minus, ' '), '|')
+            print('=' * print_num)
+            since = time.time()
+
+            path_seg_postprocessed_results = os.path.join(os.path.join(args.path_exp, "test_seg_preds_postprocessed"))
+            if not os.path.exists(path_seg_postprocessed_results):
+                os.makedirs(path_seg_postprocessed_results)
+            postprocess_3d_pred(args.dataset_name, path_seg_results, path_seg_postprocessed_results, args.fill_hole_thr)
+
+            time_elapsed = time.time() - since
+            m, s = divmod(time_elapsed, 60)
+            h, m = divmod(m, 60)
+            print('-' * print_num)
+            print('| Preds Post-Processing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
+            print('=' * print_num)
+
+        # evaluation
         print('-' * print_num)
-        print('| Starting Preds Post-Processing'.ljust(print_num_minus, ' '), '|')
+        print('| Starting Eval'.ljust(print_num_minus, ' '), '|')
         print('=' * print_num)
         since = time.time()
 
-        path_seg_postprocessed_results = os.path.join(os.path.join(args.path_exp, "test_seg_preds_postprocessed"))
-        if not os.path.exists(path_seg_postprocessed_results):
-            os.makedirs(path_seg_postprocessed_results)
-        postprocess_3d_pred(args.dataset_name, path_seg_results, path_seg_postprocessed_results, args.fill_hole_thr)
+        test_results = offline_eval(path_seg_postprocessed_results, os.path.join(args.path_dataset, "val", "mask"), num_classes=cfg['NUM_CLASSES'])
 
         time_elapsed = time.time() - since
         m, s = divmod(time_elapsed, 60)
         h, m = divmod(m, 60)
         print('-' * print_num)
-        print('| Preds Post-Processing Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
+        print('| Eval Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
         print('=' * print_num)
-
-    # evaluation
-    print('-' * print_num)
-    print('| Starting Eval'.ljust(print_num_minus, ' '), '|')
-    print('=' * print_num)
-    since = time.time()
-
-    test_results = offline_eval(path_seg_postprocessed_results, os.path.join(args.path_dataset, "val", "mask"), num_classes=cfg['NUM_CLASSES'])
-
-    time_elapsed = time.time() - since
-    m, s = divmod(time_elapsed, 60)
-    h, m = divmod(m, 60)
-    print('-' * print_num)
-    print('| Eval Completed In {:.0f}h {:.0f}mins {:.0f}s'.format(h, m, s).ljust(print_num_minus, ' '), '|')
-    print('=' * print_num)
 
     # save test metrics in csv file
     test_metrics = pd.DataFrame([{

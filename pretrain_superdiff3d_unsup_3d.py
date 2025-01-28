@@ -19,7 +19,9 @@ from config.augmentation.online_aug import data_transform_3d
 from loss.loss_function import segmentation_loss
 from models.getnetwork import get_network
 from dataload.dataset_3d import dataset_it
-from utils import save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, save_preds_3d, superpix_segment_3d
+from utils import save_snapshot, init_seeds, compute_epoch_loss, evaluate, print_best_val_metrics, save_preds, save_preds_3d, superpix_segment_3d, elbo_metric
+
+from models.networks_3d.unet3d_ddpm import SuperDiffusion
 
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
@@ -53,7 +55,8 @@ if __name__ == '__main__':
     parser.add_argument('--queue_length', default=48, type=int)
     parser.add_argument('--samples_per_volume_train', default=4, type=int)
     parser.add_argument('--samples_per_volume_val', default=8, type=int)
-    parser.add_argument('-n', '--network', default='unet3d', type=str)
+    parser.add_argument('-n', '--network', default='unet3d_ddpm', type=str)
+    parser.add_argument('--timestamp_diffusion', default=1000, type=int)
     parser.add_argument('--debug', default=True)
     
     args = parser.parse_args()
@@ -73,7 +76,7 @@ if __name__ == '__main__':
         args.patch_size = eval(args.patch_size)
 
     # create folders
-    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "superpix_unsup", "{}".format(args.network), "inv_temp-1", "regime-100", "run-{}".format(args.seed))
+    path_run = os.path.join(args.path_root_exp, os.path.split(args.path_dataset)[1], "superdiff_unsup", "{}".format(args.network), "inv_temp-1", "regime-100", "run-{}".format(args.seed))
     if not os.path.exists(path_run):
         os.makedirs(path_run)
     path_trained_models = os.path.join(os.path.join(path_run, "checkpoints"))
@@ -135,8 +138,26 @@ if __name__ == '__main__':
     num_batches = {'pretrain_unsup': len(dataloaders['train']), 'val': len(dataloaders['val'])}
 
     # create model
-    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'])
+    model = get_network(args.network, cfg['IN_CHANNELS'], cfg['NUM_CLASSES'], timestamp_diffusion=args.timestamp_diffusion)
     model = model.cuda()
+
+    # define criterion, optimizer, and scheduler
+    diffusion = SuperDiffusion(
+        model.net,
+        image_size = args.patch_size[0],
+        timesteps = args.timestamp_diffusion,    # number of steps
+        objective='pred_noise', #'pred_x0', #'pred_v', #'pred_noise', #
+    )
+    diffusion = diffusion.to(args.device)
+    diffusion_seg = SuperDiffusion(
+        model.net_seg,
+        image_size = args.patch_size[0],
+        timesteps = args.timestamp_diffusion,    # number of steps
+        objective='pred_x0', #'pred_x0', #'pred_v', #'pred_noise', #
+    )
+    diffusion_seg = diffusion_seg.to(args.device)
+    
+    criterion = segmentation_loss(args.loss, False).cuda()
 
     # define criterion, optimizer, and scheduler
     criterion = segmentation_loss(args.loss, False).cuda()
@@ -167,42 +188,42 @@ if __name__ == '__main__':
 
         train_loss = 0.0
         val_loss = 0.0
-        train_loss_superpix, val_loss_superpix = 0.0, 0.0
+        train_loss_superdiff = 0.0
+        train_loss_reconstr = 0.0
 
         for i, data in enumerate(dataloaders['train']):
             inputs_train = Variable(data['image'][tio.DATA].cuda())
             mask_train = Variable(data['mask'][tio.DATA].squeeze(1).long().cuda())
-            mask_superpix = superpix_segment_3d(inputs_train).to(dtype=torch.int64)
+            slice_idx = inputs_train.shape[-1] // 2
+            #inputs_train, mask_train = inputs_train[:, :, :, :, slice_idx], mask_train[:, :, :, slice_idx]
             name_train = data['ID']
             affine_train = data['image']['affine']
 
             optimizer.zero_grad()
 
-            outputs_train, outputs_superpix = model(inputs_train)
+            loss_superdiff, pseudo_outputs_train = diffusion_seg(inputs_train, torch.zeros_like(mask_train), conditioner='img')
+            loss_reconstr, outputs_reconstr = diffusion(inputs_train, pseudo_outputs_train, conditioner='target')
+            outputs_train = model(pseudo_outputs_train)
             loss_train = criterion(outputs_train, mask_train)
-            loss_superpix = criterion(outputs_superpix, mask_superpix)
 
+            #loss_superdiff.backward(retain_graph=True)
             loss_train.backward(retain_graph=True)
-
-            for m in model.modules():
-                if hasattr(m, 'local_update'): m.local_update()
             if hasattr(model, 'reset_internal_grads'): model.reset_internal_grads()
-            loss_superpix.backward()
+            loss_reconstr.backward()
 
             optimizer.step()
             train_loss += loss_train.item()
-            train_loss_superpix += loss_superpix.item()
+            train_loss_superdiff += loss_superdiff.item()
+            train_loss_reconstr += loss_reconstr.item()
 
             if i == 0:
-                score_list_train = torch.ones_like(outputs_train) #outputs_train # Dummy output for training eval to avoid oom
-                mask_list_train = torch.ones_like(mask_train) #mask_train
+                score_list_train = outputs_train
+                mask_list_train = mask_train
                 name_list_train = name_train
                 affine_list_train = affine_train
             else:
-                #score_list_train = torch.cat((score_list_train, outputs_train), dim=0)
-                #mask_list_train = torch.cat((mask_list_train, mask_train), dim=0)
-                score_list_train = torch.cat((score_list_train, score_list_train[-1:]), dim=0)
-                mask_list_train = torch.cat((mask_list_train, mask_list_train[-1:]), dim=0)
+                score_list_train = torch.cat((score_list_train, outputs_train), dim=0)
+                mask_list_train = torch.cat((mask_list_train, mask_train), dim=0)
                 name_list_train = np.append(name_list_train, name_train, axis=0)
                 affine_list_train = torch.cat((affine_list_train, affine_train), dim=0)
 
@@ -212,7 +233,8 @@ if __name__ == '__main__':
             print('=' * print_num)
             print('| Epoch {}/{}'.format(epoch + 1, args.num_epochs).ljust(print_num_minus, ' '), '|')
             train_epoch_loss = compute_epoch_loss(train_loss, num_batches, print_num, print_num_minus, unsup_pretrain=True)
-            train_epoch_loss_superpix = compute_epoch_loss(train_loss_superpix, num_batches, print_num, print_num_minus, unsup_pretrain=True)
+            train_epoch_loss_superdiff = compute_epoch_loss(train_loss_superdiff, num_batches, print_num, print_num_minus, unsup_pretrain=True)
+            train_epoch_loss_reconstr = compute_epoch_loss(train_loss_reconstr, num_batches, print_num, print_num_minus, unsup_pretrain=True)
             if args.threshold:
                 train_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_train, mask_list_train, print_num_minus, thr_ranges=[args.threshold, args.threshold+(args.thr_interval/2)])
             else:
@@ -224,10 +246,12 @@ if __name__ == '__main__':
                     for i, a in enumerate(name_list_train)]
                 name_list_train = [name + ".{}".format(ext) for name in name_list_train]
                 save_preds_3d(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, affine_list_train, num_classes=cfg['NUM_CLASSES'])
+                #save_preds(score_list_train, train_eval_list[0], name_list_train, path_train_seg_results, cfg['PALETTE'])
 
             # saving metrics to tensorboard writer
             writer.add_scalar('train/segm_loss', train_epoch_loss, count_iter)
-            writer.add_scalar('train/superpix_loss', train_epoch_loss_superpix, count_iter)
+            writer.add_scalar('train/superdiff_loss', train_epoch_loss_superdiff, count_iter)
+            writer.add_scalar('train/reconstr_loss', train_epoch_loss_reconstr, count_iter)
             writer.add_scalar('train/lr', optimizer.param_groups[0]['lr'], count_iter)
             writer.add_scalar('train/DC', train_eval_list[2], count_iter)
             writer.add_scalar('train/JI', train_eval_list[1], count_iter)
@@ -238,7 +262,8 @@ if __name__ == '__main__':
             train_metrics.append({
                 'epoch': count_iter,
                 'segm/loss': train_epoch_loss,
-                'superpix/loss': train_epoch_loss_superpix,
+                'superdiff/loss': train_epoch_loss_superdiff,
+                'reconstr/loss': train_epoch_loss_reconstr,
                 'segm/dice': train_eval_list[2],
                 'segm/jaccard': train_eval_list[1],
                 'lr': optimizer.param_groups[0]['lr'],
@@ -254,19 +279,18 @@ if __name__ == '__main__':
                 for i, data in enumerate(dataloaders['val']):
                     inputs_val = Variable(data['image'][tio.DATA].cuda())
                     mask_val = Variable(data['mask'][tio.DATA].squeeze(1).long().cuda())
-                    mask_superpix_val = superpix_segment_3d(inputs_val).to(dtype=torch.int64)
+                    slice_idx = inputs_val.shape[-1] // 2
+                    #inputs_val, mask_val = inputs_val[:, :, :, :, slice_idx], mask_val[:, :, :, slice_idx]
                     name_val = data['ID']
                     affine_val = data['image']['affine']
 
                     optimizer.zero_grad()
 
-                    outputs_val, outputs_superpix = model(inputs_val)
-
+                    loss_superdiff, pseudo_outputs_val = diffusion_seg(inputs_val, torch.zeros_like(mask_val), conditioner='img')
+                    loss_reconstr, outputs_reconstr = diffusion(inputs_val, pseudo_outputs_val, conditioner='target')
+                    outputs_val = model(pseudo_outputs_val)
                     loss_val = criterion(outputs_val, mask_val)
-                    loss_superpix_val = criterion(outputs_superpix, mask_superpix_val)
-                    
                     val_loss += loss_val.item()
-                    val_loss_superpix += loss_superpix_val.item()
 
                     if i == 0:
                         score_list_val = outputs_val
@@ -293,7 +317,6 @@ if __name__ == '__main__':
                     # metrics_debug.to_csv(os.path.join(path_val_output_debug, "val_metrics_epoch_{}.csv").format(count_iter), index=False)
 
                 val_epoch_loss = compute_epoch_loss(val_loss, num_batches, print_num, print_num_minus, train=False, unsup_pretrain=True)
-                val_epoch_loss_superpix = compute_epoch_loss(val_loss_superpix, num_batches, print_num, print_num_minus, train=False, unsup_pretrain=True)
                 if args.threshold:
                     val_eval_list = evaluate(cfg['NUM_CLASSES'], score_list_val, mask_list_val, print_num_minus, train=False, thr_ranges=[args.threshold, args.threshold+(args.thr_interval/2)])
                 else:
@@ -309,10 +332,10 @@ if __name__ == '__main__':
                         for i, a in enumerate(name_list_val)]
                     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
                     save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
-                
+                    #save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'best_model'), cfg['PALETTE'])
+
                 # saving metrics to tensorboard writer
                 writer.add_scalar('val/segm_loss', val_epoch_loss, count_iter)
-                writer.add_scalar('val/superpix_loss', val_epoch_loss_superpix, count_iter)
                 writer.add_scalar('val/DC', val_eval_list[2], count_iter)
                 writer.add_scalar('val/JI', val_eval_list[1], count_iter)
                 if cfg['NUM_CLASSES'] == 2:
@@ -322,7 +345,6 @@ if __name__ == '__main__':
                 val_metrics.append({
                     'epoch': count_iter,
                     'segm/loss': val_epoch_loss,
-                    'superpix/loss': val_epoch_loss_superpix,
                     'segm/dice': val_eval_list[2],
                     'segm/jaccard': val_eval_list[1],
                     'thresh': val_eval_list[0],
@@ -338,6 +360,7 @@ if __name__ == '__main__':
         for i, a in enumerate(name_list_val)]
     name_list_val = [name + ".{}".format(ext) for name in name_list_val]
     save_preds_3d(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), affine_list_val, num_classes=cfg['NUM_CLASSES'])
+    #save_preds(score_list_val, val_eval_list[0], name_list_val, os.path.join(path_seg_results, 'last_model'), cfg['PALETTE'])
 
     # save last model
     save_snapshot(model, path_trained_models, threshold=val_eval_list[0], save_best=False)

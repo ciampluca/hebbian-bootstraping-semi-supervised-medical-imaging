@@ -36,7 +36,7 @@ class SuperDiffusion(GaussianDiffusion):
         c_in, c_out = x_start.shape[1], y_start.shape[1]
         #x_start = torch.cat([x_start, y_start], dim=1)
         
-        b, c, h, w = x_start.shape
+        #b, c, h, w = x_start.shape
 
         noise = default(noise, lambda: torch.randn_like(x_start))
 
@@ -46,7 +46,7 @@ class SuperDiffusion(GaussianDiffusion):
 
         if offset_noise_strength > 0.:
             offset_noise = torch.randn(x_start.shape[:2], device = self.device)
-            noise += offset_noise_strength * rearrange(offset_noise, 'b c -> b c 1 1')
+            noise += offset_noise_strength * rearrange(offset_noise, 'b c -> b c 1 1 1')
 
         # noise sample
 
@@ -99,11 +99,11 @@ class SuperDiffusion(GaussianDiffusion):
 
     def forward(self, img, target, conditioner='target', loss_fn=None, *args, **kwargs):
         if target.ndim == img.ndim - 1: target = target.unsqueeze(1)
-        if target.shape[1] == 1: 
+        if target.shape[1] == 1:
             #target = torch.cat([target, 1 - target], dim=1)
             target = torch.nn.functional.one_hot(target.long(), num_classes=self.model.n_classes).transpose(1, -1).squeeze(-1)
         target = target.to(dtype=img.dtype)
-        b, c, h, w, device, img_size, = *img.shape, img.device, self.image_size
+        b, c, h, w, z, device, img_size, = *img.shape, img.device, self.image_size
         assert h == img_size[0] and w == img_size[1], f'height and width of image must be {img_size}'
         t = torch.randint(0, self.num_timesteps, (b,), device=device).long()
 
@@ -174,31 +174,7 @@ class SuperDiffusion(GaussianDiffusion):
         return self.sample_mask_loop(img, target) if conditioner =='target' else self.sample_mask_loop(target, img)
 
 
-def init_weights(net, init_type='normal', gain=0.02):
-    def init_func(m):
-        classname = m.__class__.__name__
-        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
-            if init_type == 'normal':
-                init.normal_(m.weight.data, 0.0, gain)
-            elif init_type == 'xavier':
-                init.xavier_normal_(m.weight.data, gain=gain)
-            elif init_type == 'kaiming':
-                init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
-            elif init_type == 'orthogonal':
-                init.orthogonal_(m.weight.data, gain=gain)
-            else:
-                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
-            if hasattr(m, 'bias') and m.bias is not None:
-                init.constant_(m.bias.data, 0.0)
-        elif classname.find('BatchNorm2d') != -1:
-            init.normal_(m.weight.data, 1.0, gain)
-            init.constant_(m.bias.data, 0.0)
-
-    print('initialize network with %s' % init_type)
-    net.apply(init_func)
-
-
-from .unet import UNet_Transposed_Leaky, DownBlock, UpBlock, ConvBlockLeakyRelu
+from ..networks_3d.unet3d  import UNet3D, init_weights
 
 class DDPM_Wrapper(Unet):
     def __init__(
@@ -233,7 +209,7 @@ class DDPM_Wrapper(Unet):
         self.n_classes = n_classes
 
         init_dim = default(init_dim, dim)
-        self.init_conv = ConvBlockLeakyRelu(input_channels, init_dim, dropout[0]) #nn.Conv2d(input_channels, init_dim, 7, padding = 3)
+        self.init_conv = UNet3D._block(input_channels, init_dim, name='enc0') #ConvBlockLeakyRelu(input_channels, init_dim, dropout[0]) #nn.Conv2d(input_channels, init_dim, 7, padding = 3)
 
         dims = [init_dim, *map(lambda m: dim * m, dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
@@ -287,16 +263,17 @@ class DDPM_Wrapper(Unet):
             attn_klass = FullAttention if layer_full_attn else LinearAttention
 
             self.downs.append(ModuleList([
-                DownBlock(dim_in, dim_out, dropout[ind+1]), #resnet_block(dim_in, dim_in),
+                nn.MaxPool3d(kernel_size=2, stride=2),
+                UNet3D._block(dim_in, dim_out, name='enc{}'.format(ind+1)), #DownBlock(dim_in, dim_out, dropout[ind+1]), #resnet_block(dim_in, dim_in),
                 nn.Identity(), #resnet_block(dim_in, dim_in),
                 nn.Identity(), #attn_klass(dim_in, dim_head = layer_attn_dim_head, heads = layer_attn_heads) if attn_enabled else nn.BatchNorm2d(dim_in),  #nn.Identity(),
-                nn.Identity(), #Downsample(dim_in, dim_out) if not is_last else nn.Conv2d(dim_in, dim_out, 3, padding = 1)
+                #nn.Identity(), #Downsample(dim_in, dim_out) if not is_last else nn.Conv2d(dim_in, dim_out, 3, padding = 1)
             ]))
 
         mid_dim = dims[-1]
-        self.mid_block1 = nn.Identity() #resnet_block(mid_dim, mid_dim)
+        self.mid_block1 = nn.MaxPool3d(kernel_size=2, stride=2) #nn.Identity() #resnet_block(mid_dim, mid_dim)
         self.mid_attn = nn.Identity() #FullAttention(mid_dim, heads = attn_heads[-1], dim_head = attn_dim_head[-1]) if attn_enabled else nn.BatchNorm2d(mid_dim) #nn.Identity()
-        self.mid_block2 = nn.Identity() #resnet_block(mid_dim, mid_dim)
+        self.mid_block2 = UNet3D._block(mid_dim, mid_dim, name='bottleneck{}'.format(len(in_out))) #nn.Identity() #resnet_block(mid_dim, mid_dim)
 
         for ind, ((dim_in, dim_out), layer_full_attn, layer_attn_heads, layer_attn_dim_head) in enumerate(zip(*map(reversed, (in_out, full_attn, attn_heads, attn_dim_head)))):
             is_last = ind == (len(in_out) - 1)
@@ -304,10 +281,11 @@ class DDPM_Wrapper(Unet):
             attn_klass = FullAttention if layer_full_attn else LinearAttention
 
             self.ups.append(ModuleList([
-                UpBlock(dim_out, dim_in, dim_in, dropout[-ind]), #resnet_block(dim_out + dim_in, dim_out),
+                nn.ConvTranspose3d(dim_out, dim_out, kernel_size=2, stride=2),
+                UNet3D._block(dim_out + dim_in, dim_in, name='dec{}'.format(len(in_out) - ind)), #UpBlock(dim_out, dim_in, dim_in, dropout[-ind]), #resnet_block(dim_out + dim_in, dim_out),
                 nn.Identity(), #resnet_block(dim_out + dim_in, dim_out),
                 nn.Identity(), #attn_klass(dim_out, dim_head = layer_attn_dim_head, heads = layer_attn_heads) if attn_enabled else nn.BatchNorm2d(dim_out), #nn.Identity(),
-                nn.Identity(), #Upsample(dim_out, dim_in) if not is_last else  nn.Conv2d(dim_out, dim_in, 3, padding = 1)
+                #nn.Identity(), #Upsample(dim_out, dim_in) if not is_last else  nn.Conv2d(dim_out, dim_in, 3, padding = 1)
             ]))
 
         default_out_dim = channels * (1 if not learned_variance else 2)
@@ -316,7 +294,7 @@ class DDPM_Wrapper(Unet):
         #self.pred_out_dim = default(pred_out_dim, default_pred_out_dim)
 
         self.final_res_block = nn.Identity() #resnet_block(init_dim * 2, init_dim)
-        self.final_conv = nn.Conv2d(init_dim, self.out_dim, 3, padding=1)
+        self.final_conv = nn.Conv3d(init_dim, self.out_dim, 3, padding=1)
         #self.final_conv_pred = nn.Conv2d(init_dim, self.pred_out_dim, 1)
 
     def forward(self, x, time, x_self_cond = None):
@@ -328,7 +306,7 @@ class DDPM_Wrapper(Unet):
 
         x = self.init_conv(x)
         t = self.time_mlp(time)
-        x = x + t.reshape(t.shape[0], t.shape[1], 1, 1)
+        x = x + t.reshape(t.shape[0], t.shape[1], 1, 1, 1)
         r = x.clone()
 
         h = []
@@ -338,22 +316,23 @@ class DDPM_Wrapper(Unet):
             x = block1(x) #, t)
             #h.append(x)
 
-            #x = block2(x, t)
+            x = block2(x) #, t)
             #x = attn(x) + x
             #h.append(x)
 
             #x = downsample(x)
 
-        #x = self.mid_block1(x, t)
+        #h.append(x)
+        #x = self.mid_block1(x) #, t)
         #x = self.mid_attn(x) + x
-        #x = self.mid_block2(x, t)
+        #x = self.mid_block2(x) #, t)
 
         for block1, block2, attn, upsample in self.ups:
             #x = torch.cat((x, h.pop()), dim = 1)
-            x = block1(x, h.pop()) #, t)
+            x = block1(x) #, h.pop()) #, t)
 
-            #x = torch.cat((x, h.pop()), dim = 1)
-            #x = block2(x, t)
+            x = torch.cat((x, h.pop()), dim = 1)
+            x = block2(x) #, t)
             #x = attn(x) + x
 
             #x = upsample(x)
@@ -367,7 +346,7 @@ class DDPM_Wrapper(Unet):
 class UNet_Wrapper(nn.Module):
     def __init__(self, in_chns, class_num, timestamp_diffusion=1000):
         super().__init__()
-        self.net = UNet_Transposed_Leaky(in_chns, class_num)
+        self.net = UNet3D(in_chns, class_num)
         self.channels = in_chns
         self.n_classes = class_num
         self.self_condition = False
@@ -398,7 +377,7 @@ class DDPMUNet(nn.Module):
         )
         #self.net_seg = UNet_Wrapper(in_chns, class_num, timestamp_diffusion)
 
-        self.final_conv = nn.Conv2d(class_num, class_num, 3, padding=1)
+        self.final_conv = nn.Conv3d(class_num, class_num, 3, padding=1)
 
     def forward(self, x):
         return self.final_conv(x)
@@ -419,7 +398,7 @@ class DDPMUNet(nn.Module):
         self.final_conv.weight.grad = grad
 
 
-def unet_ddpm(in_channels, num_classes, initialization_weights='kaiming', timestamp_diffusion=1000):
+def unet3d_ddpm(in_channels, num_classes, initialization_weights='kaiming', timestamp_diffusion=1000):
     model = DDPMUNet(in_channels, num_classes, timestamp_diffusion)
     init_weights(model, initialization_weights)
     

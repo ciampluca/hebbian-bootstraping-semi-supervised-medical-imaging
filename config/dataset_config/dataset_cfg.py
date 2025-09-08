@@ -1,7 +1,7 @@
 import numpy as np
 import torchio as tio
 
-def dataset_cfg(dataet_name):
+def dataset_cfg(dataset_name):
 
     config = {
         'CREMI':
@@ -114,6 +114,32 @@ def dataset_cfg(dataet_name):
                     [255, 255, 255],
                 ]).flatten())
             },
+        'OCT-CME':
+            {
+                'IN_CHANNELS': 3,
+                'NUM_CLASSES': 2,
+                'MEAN': [0.485, 0.456, 0.406],  # Standard ImageNet mean
+                'STD': [0.229, 0.224, 0.225],   # Standard ImageNet std
+                #'MEAN_DB2_H': [0.489676],
+                #'STD_DB2_H': [0.081749],
+                'PALETTE': list(np.array([
+                    [0, 0, 0],
+                    [255, 255, 255],
+                ]).flatten())
+            },
+        'QaTa-COV19':
+            {
+                'IN_CHANNELS': 3,
+                'NUM_CLASSES': 2,
+                'MEAN': [0.485, 0.456, 0.406],  # Standard ImageNet mean
+                'STD': [0.229, 0.224, 0.225],   # Standard ImageNet std
+                #'MEAN_DB2_H': [0.489676],
+                #'STD_DB2_H': [0.081749],
+                'PALETTE': list(np.array([
+                    [0, 0, 0],
+                    [255, 255, 255],
+                ]).flatten())
+            },
     }
 
-    return config[dataet_name]
+    return config[dataset_name]

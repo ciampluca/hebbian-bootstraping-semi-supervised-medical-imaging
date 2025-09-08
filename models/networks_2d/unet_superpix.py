@@ -201,8 +201,10 @@ class DecoderLeaky(nn.Module):
 
 class UNet_Transposed_Leaky(nn.Module):
     
-    def __init__(self, in_chns, class_num):
+    def __init__(self, in_chns, class_num, test_unsup_low_layer=False, linear_probe=True, multiple_layers=False):
         super(UNet_Transposed_Leaky, self).__init__()
+        
+        self.test_unsup_low_layer = test_unsup_low_layer
 
         params = {'in_chns': in_chns,
                   'feature_chns': [16, 32, 64, 128, 256],
@@ -217,8 +219,29 @@ class UNet_Transposed_Leaky(nn.Module):
         # self.aux_decoder2 = Decoder(params)
         # self.aux_decoder3 = Decoder(params)
         
-        self.out_conv = nn.Conv2d(params['feature_chns'][0], class_num,
-                            kernel_size=3, padding=1)
+        if linear_probe:
+            kernel_dim = 1
+            padding = 0
+            if not multiple_layers:
+                self.out_conv = nn.Conv2d(params['feature_chns'][0], class_num,
+                                kernel_size=kernel_dim, padding=padding)
+            else:
+                self.out_conv = nn.Sequential(
+                    nn.Conv2d(params['feature_chns'][0], params['feature_chns'][0]*4, kernel_size=kernel_dim, padding=padding),
+                    nn.ReLU(),
+                    nn.Dropout(),
+                    # nn.Conv2d(params['feature_chns'][0]*4, params['feature_chns'][0]*2, kernel_size=kernel_dim, padding=padding),
+                    # nn.ReLU(),
+                    # nn.Dropout(),
+                    nn.Conv2d(params['feature_chns'][0]*4, class_num, kernel_size=kernel_dim, padding=padding)
+                )
+        else:
+            kernel_dim = 3
+            padding = 1
+            self.out_conv = nn.Conv2d(params['feature_chns'][0], class_num,
+                    kernel_size=kernel_dim, padding=padding)
+        
+        
         self.out_superpix = nn.Conv2d(params['feature_chns'][0], 2, kernel_size=1)
 
     def forward(self, x):
@@ -238,9 +261,14 @@ class UNet_Transposed_Leaky(nn.Module):
         return main_seg, out_superpix
     
     def reset_internal_grads(self):
-        grad = self.out_conv.weight.grad.clone().detach()
+        grad_dict = {}
+        for n, p in self.out_conv.named_parameters():
+            grad_dict[n] = p.grad.clone().detach()
+            
         self.zero_grad()
-        self.out_conv.weight.grad = grad
+        
+        for n, p in self.out_conv.named_parameters():
+            p.grad = grad_dict[n]
 
 
 def unet_superpix(in_channels, num_classes, initialization_weights='kaiming'):

@@ -62,6 +62,8 @@ class dataset_itn(Dataset):
 
         img_path_1 = self.img_paths_1[index]
         img_1 = Image.open(img_path_1)
+        if img_1.mode != "RGB":
+            img_1 = img_1.convert("RGB")
         img_1 = np.array(img_1)
 
         if self.sup:

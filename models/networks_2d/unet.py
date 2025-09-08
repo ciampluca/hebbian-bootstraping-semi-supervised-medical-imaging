@@ -421,7 +421,7 @@ class UNet_Transposed(nn.Module):
     
 
 class UNet_Transposed_Leaky(nn.Module):
-    def __init__(self, in_chns, class_num):
+    def __init__(self, in_chns, class_num, linear_probe=False, multiple_layers=True):
         super(UNet_Transposed_Leaky, self).__init__()
 
         params = {'in_chns': in_chns,
@@ -435,8 +435,34 @@ class UNet_Transposed_Leaky(nn.Module):
         # self.aux_decoder1 = Decoder(params)
         # self.aux_decoder2 = Decoder(params)
         # self.aux_decoder3 = Decoder(params)
-        self.out_conv = nn.Conv2d(params['feature_chns'][0], class_num,
-                            kernel_size=3, padding=1)
+        if linear_probe:
+            kernel_dim = 1
+            padding = 0
+        else:
+            kernel_dim = 3
+            padding = 1
+            
+        if not multiple_layers:
+            self.out_conv = nn.Conv2d(params['feature_chns'][0], class_num,
+                                kernel_size=kernel_dim, padding=padding)
+        else:
+            self.out_conv = nn.Sequential(
+                nn.Conv2d(params['feature_chns'][0], params['feature_chns'][0]*4, kernel_size=kernel_dim, padding=padding),
+                nn.ReLU(),
+                nn.Dropout(),
+                nn.Conv2d(params['feature_chns'][0]*4, params['feature_chns'][0]*2, kernel_size=kernel_dim, padding=padding),
+                nn.ReLU(),
+                nn.Dropout(),
+                nn.Conv2d(params['feature_chns'][0]*2, class_num, kernel_size=kernel_dim, padding=padding)
+            )    
+            
+        # if self.test_unsup_low_layer:
+        #     self.out_conv = nn.Conv2d(params['feature_chns'][-1], class_num,
+        #             kernel_size=kernel_dim, padding=padding)
+        # else:
+        #     self.out_conv = nn.Conv2d(params['feature_chns'][0], class_num,
+        #                         kernel_size=kernel_dim, padding=padding)
+
 
     def forward(self, x):
         feature = self.encoder(x)

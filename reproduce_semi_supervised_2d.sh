@@ -17,14 +17,16 @@ VALIDATE_ITER=1
 
 INIT_WEIGHTS=(
     'kaiming'
-    'xavier'
-    'orthogonal'
+    #'xavier'
+    #'orthogonal'
 )
 
 DATASETS=(
     GlaS
     PH2
     HMEPS
+    OCT-CME
+    QaTa-COV19
 )
 
 REGIMES=(

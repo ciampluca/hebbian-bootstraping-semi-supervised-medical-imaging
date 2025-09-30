@@ -29,6 +29,8 @@ DATASETS=(
     GlaS
     PH2
     HMEPS
+    OCT-CME
+    QaTa-COV19
 )
 
 HEBB_MODES=(

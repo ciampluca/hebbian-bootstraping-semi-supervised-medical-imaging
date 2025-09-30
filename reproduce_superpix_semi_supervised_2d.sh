@@ -27,6 +27,8 @@ DATASETS=(
     GlaS
     PH2
     HMEPS
+    OCT-CME
+    QaTa-COV19
 )
 
 

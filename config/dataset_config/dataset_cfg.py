@@ -4,19 +4,6 @@ import torchio as tio
 def dataset_cfg(dataset_name):
 
     config = {
-        'CREMI':
-            {
-                'IN_CHANNELS': 1,
-                'NUM_CLASSES': 2,
-                'MEAN': [0.503902],
-                'STD': [0.110739],
-                'MEAN_DB2_H': [0.505787],
-                'STD_DB2_H': [0.115504],
-                'PALETTE': list(np.array([
-                    [255, 255, 255],
-                    [0, 0, 0],
-                ]).flatten())
-            },
         'GlaS':
             {
                 'IN_CHANNELS': 3,
@@ -46,19 +33,6 @@ def dataset_cfg(dataset_name):
                     [255, 255, 255],
                 ]).flatten())
             },
-        'ISIC-2017':
-            {
-                'IN_CHANNELS': 3,
-                'NUM_CLASSES': 2,
-                'MEAN': [0.699002, 0.556046, 0.512134],
-                'STD': [0.365650, 0.317347, 0.339400],
-                'MEAN_DB2_H': [0.489676],
-                'STD_DB2_H': [0.081749],
-                'PALETTE': list(np.array([
-                    [0, 0, 0],
-                    [255, 255, 255],
-                ]).flatten())
-            },
         'PH2':
             {
                 'IN_CHANNELS': 3,
@@ -83,21 +57,6 @@ def dataset_cfg(dataset_name):
                 'PALETTE': list(np.array([
                     [0, 0, 0],
                     [255, 255, 255],
-                ]).flatten())
-            },
-        'LiTS':
-            {
-                'IN_CHANNELS': 1,
-                'NUM_CLASSES': 3,
-                'NORMALIZE': tio.ZNormalization.mean,
-                'PATCH_SIZE': (112, 112, 32),
-                'FORMAT': '.nii',
-                'NUM_SAMPLE_TRAIN': 8,
-                'NUM_SAMPLE_VAL': 12,
-                'PALETTE': list(np.array([
-                    [0, 0, 0],
-                    [255, 255, 255],
-                    [255, 255, 0],
                 ]).flatten())
             },
         'Atrial':

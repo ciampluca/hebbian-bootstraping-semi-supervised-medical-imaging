@@ -20,3 +20,4 @@ denoising_diffusion_pytorch==2.0.16
 tensorboard==2.16.2
 tqdm==4.66.2
 urllib3==2.2.1
+transformers
